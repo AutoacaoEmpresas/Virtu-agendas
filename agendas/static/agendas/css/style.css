@@ -1,0 +1,46 @@
+.mini-calendar td { padding: 2px; }
+.mini-day {
+    width: 28px;
+    height: 28px;
+    justify-content: center;
+    text-decoration: none;
+    color: inherit;
+    font-size: 0.8rem;
+    position: relative;
+}
+.mini-day .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #E64980;
+    margin-top: 1px;
+}
+.mini-day.bg-primary .dot { background: #fff; }
+
+.agendas-abertas-scroll {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.week-grid {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+.day-column {
+    min-width: 150px;
+}
+.day-body {
+    min-height: 420px;
+    background: #fff;
+}
+.evento-card {
+    background: #f8f9fa;
+    cursor: pointer;
+    transition: box-shadow 0.15s ease-in-out;
+}
+.evento-card:hover {
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+}
+.evento-vazio {
+    background: repeating-linear-gradient(45deg, #fff, #fff 6px, #f1f3f5 6px, #f1f3f5 12px);
+}

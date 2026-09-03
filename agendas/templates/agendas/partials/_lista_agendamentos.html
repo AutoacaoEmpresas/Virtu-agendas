@@ -1,0 +1,62 @@
+<div class="modal-header">
+    <h5 class="modal-title">Agendamentos de {{ dia|date:"d/m/Y" }}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<div class="modal-body">
+    <form class="row g-2 mb-3 lista-filtros" data-dia="{{ dia|date:'Y-m-d' }}">
+        <div class="col-6">
+            <input type="text" name="q" value="{{ busca }}" class="form-control form-control-sm" placeholder="Buscar médico ou procedimento...">
+        </div>
+        <div class="col-4">
+            <select name="ordenar" class="form-select form-select-sm">
+                <option value="recentes" {% if ordenar == "recentes" %}selected{% endif %}>Mais recentes</option>
+                <option value="antigos" {% if ordenar == "antigos" %}selected{% endif %}>Mais antigos</option>
+            </select>
+        </div>
+        <div class="col-2">
+            <button type="submit" class="btn btn-sm btn-outline-primary w-100">Buscar</button>
+        </div>
+    </form>
+
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Médico</th>
+                <th>Procedimento</th>
+                <th>Turno</th>
+                <th>Pacientes Esperados</th>
+                <th>Unidade</th>
+                <th>Confirmação</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for linha in linhas %}
+            <tr class="linha-agendamento" role="button" data-agenda-id="{{ linha.agenda.id }}">
+                <td>{{ linha.agenda.medico_inicial.nome|default:"Sem médico" }}</td>
+                <td>
+                    {% for pa in linha.procedimentos %}
+                        <span class="badge bg-secondary-subtle text-dark">{{ pa.procedimento.nome_procedimento }}</span>
+                    {% empty %}
+                        <span class="text-muted">-</span>
+                    {% endfor %}
+                </td>
+                <td>{{ linha.agenda.horario.turno }}</td>
+                <td>{{ linha.pacientes_esperados }}</td>
+                <td>{{ linha.unidade.nome|default:"-" }}</td>
+                <td>
+                    {% if linha.agenda.confirmacao_medico %}
+                        <span class="badge bg-success">Confirmado</span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">Esperando</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="text-center text-muted py-4">Nenhum agendamento neste dia.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+</div>

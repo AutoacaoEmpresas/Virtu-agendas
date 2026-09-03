@@ -1,0 +1,170 @@
+<form method="post" action="{% if agenda %}{% url 'agendas:cadastro_agenda_editar' agenda.id %}{% else %}{% url 'agendas:cadastro_agenda_nova' %}{% endif %}">
+{% csrf_token %}
+<div class="modal-header">
+    <h5 class="modal-title">{% if agenda %}Editar Agenda #{{ agenda.id }}{% else %}Cadastro de Agenda{% endif %}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<div class="modal-body">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Unidade</label>
+            <select class="form-select" id="id_unidade">
+                <option value="">Selecione...</option>
+                {% for u in unidades %}
+                <option value="{{ u.id }}" {% if unidade_pref_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Sala</label>
+            <select class="form-select" name="sala" id="id_sala">
+                <option value="">Selecione...</option>
+                {% for s in salas %}
+                <option value="{{ s.id }}" data-unidade="{{ s.unidade_id }}"
+                    {% if sala_pref and sala_pref.id == s.id %}selected{% endif %}>{{ s.nome }} ({{ s.especialidade }})</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Médico Inicial</label>
+            <select class="form-select" name="medico_inicial">
+                <option value="">Selecione...</option>
+                {% for m in medicos %}
+                <option value="{{ m.id }}" {% if agenda.medico_inicial_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+            </select>
+            <div class="btn-group mt-2 w-100" role="group">
+                <input type="radio" class="btn-check" name="medico_inicial_status" id="status_confirmado" value="confirmado"
+                    {% if agenda.confirmacao_medico and not agenda.medico_atendido_id %}checked{% endif %}
+                    {% if not agenda %}checked{% endif %}>
+                <label class="btn btn-outline-success btn-sm" for="status_confirmado">Confirmado</label>
+
+                <input type="radio" class="btn-check" name="medico_inicial_status" id="status_cancelado" value="cancelado"
+                    {% if agenda and not agenda.confirmacao_medico %}checked{% endif %}>
+                <label class="btn btn-outline-danger btn-sm" for="status_cancelado">Cancelado</label>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Médico Substituto</label>
+            <select class="form-select" name="medico_substituto">
+                <option value="">Nenhum</option>
+                {% for m in medicos %}
+                <option value="{{ m.id }}" {% if agenda.medico_atendido_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+            </select>
+            <div class="form-check mt-2">
+                <input class="form-check-input" type="checkbox" name="medico_substituto_confirmado" id="substituto_confirmado"
+                    {% if agenda.medico_atendido_id and agenda.confirmacao_medico %}checked{% endif %}>
+                <label class="form-check-label" for="substituto_confirmado">Confirmado</label>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <label class="form-label">Horário Inicial</label>
+            <input type="time" class="form-control" name="horario_inicio" value="{{ horario_inicio_pref|time:'H:i'|default:'08:00' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Horário Final</label>
+            <input type="time" class="form-control" name="horario_fim" value="{{ horario_fim_pref|time:'H:i'|default:'12:00' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Data Inicial</label>
+            <input type="date" class="form-control" name="data_inicial" value="{{ data_pref|date:'Y-m-d' }}">
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">Data Final</label>
+            <input type="date" class="form-control" name="data_final" value="{{ data_pref|date:'Y-m-d' }}">
+        </div>
+
+        <div class="col-md-6">
+            <label class="form-label">Concierge</label>
+            <input type="text" class="form-control" name="concierge" value="{{ agenda.concierge|default:'' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Frequência</label>
+            <select class="form-select" name="frequencia" {% if agenda %}disabled{% endif %}>
+                <option value="unica">Única</option>
+                <option value="semanal">Semanal (até Data Final)</option>
+            </select>
+            {% if agenda %}<div class="form-text">Recorrência só se aplica ao criar uma nova agenda.</div>{% endif %}
+        </div>
+
+        <div class="col-12">
+            <hr>
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">Procedimentos</label>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="btn-add-procedimento">+ Adicionar</button>
+            </div>
+            <table class="table table-sm" id="tabela-procedimentos">
+                <thead>
+                    <tr>
+                        <th>Procedimento</th>
+                        <th style="width:150px;">Quant. Prevista</th>
+                        <th style="width:150px;">Quant. Real</th>
+                        <th style="width:40px;"></th>
+                    </tr>
+                </thead>
+                <tbody id="procedimentos-body">
+                    {% for pa in procedimentos_agenda %}
+                    <tr class="linha-procedimento">
+                        <td>
+                            <select class="form-select form-select-sm" name="procedimento[]">
+                                <option value="">Selecione...</option>
+                                {% for p in procedimentos %}
+                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}"
+                                    {% if pa.procedimento_id == p.id %}selected{% endif %}>{{ p.nome_procedimento }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="{{ pa.esperanca_pacientes }}"></td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="real_pacientes[]" value="{{ pa.real_pacientes|default_if_none:'' }}"></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger btn-remover-linha">&times;</button></td>
+                    </tr>
+                    {% empty %}
+                    <tr class="linha-procedimento">
+                        <td>
+                            <select class="form-select form-select-sm" name="procedimento[]">
+                                <option value="">Selecione...</option>
+                                {% for p in procedimentos %}
+                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}">{{ p.nome_procedimento }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="1"></td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="real_pacientes[]"></td>
+                        <td><button type="button" class="btn btn-sm btn-outline-danger btn-remover-linha">&times;</button></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+<div class="modal-footer justify-content-between">
+    <div class="d-flex gap-3 align-items-center">
+        <div>
+            <span class="text-muted small">Valor Previsto:</span>
+            <strong id="valor-previsto">R$ {{ agenda.valor_previsto|default:"0,00" }}</strong>
+        </div>
+        <div>
+            <label class="small text-muted mb-0">Valor Real</label>
+            <input type="number" step="0.01" class="form-control form-control-sm" name="valor_real" value="{{ agenda.valor_real|default_if_none:'' }}" style="width:120px;">
+        </div>
+        <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="tipo_calculo_pagamento" id="calc_procedimento" value="procedimento"
+                {% if agenda.tipo_calculo_pagamento or not agenda %}checked{% endif %}>
+            <label class="btn btn-outline-secondary btn-sm" for="calc_procedimento">Por Procedimento</label>
+
+            <input type="radio" class="btn-check" name="tipo_calculo_pagamento" id="calc_paciente" value="paciente"
+                {% if agenda and not agenda.tipo_calculo_pagamento %}checked{% endif %}>
+            <label class="btn btn-outline-secondary btn-sm" for="calc_paciente">Por Paciente</label>
+        </div>
+    </div>
+    <div>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar</button>
+    </div>
+</div>
+</form>

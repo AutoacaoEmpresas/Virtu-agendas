@@ -1,0 +1,128 @@
+{% extends "agendas/base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <!-- Menu lateral -->
+        <aside class="col-md-3 mb-3">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong>{{ mes_ref|date:"F Y" }}</strong>
+                    </div>
+                    <table class="table table-sm table-borderless text-center mb-0 mini-calendar">
+                        <thead>
+                            <tr class="text-muted small">
+                                <th>S</th><th>T</th><th>Q</th><th>Q</th><th>S</th><th>S</th><th>D</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for semana in semanas_mes %}
+                            <tr>
+                                {% for dia in semana %}
+                                <td>
+                                    <a href="?semana={{ dia|date:'Y-m-d' }}"
+                                       class="mini-day d-inline-flex flex-column align-items-center
+                                              {% if dia.month != mes_ref.month %}text-muted opacity-50{% endif %}
+                                              {% if dia == hoje %}bg-primary text-white rounded{% endif %}
+                                              {% if dia >= inicio_semana and dia <= fim_semana %}fw-bold{% endif %}">
+                                        {{ dia.day }}
+                                        {% if dia in dias_com_agenda %}<span class="dot"></span>{% endif %}
+                                    </a>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">Agendas abertas</div>
+                <div class="list-group list-group-flush agendas-abertas-scroll">
+                    {% for dia, itens in agendas_abertas_por_dia %}
+                        <div class="list-group-item bg-light small fw-bold">{{ dia|date:"d/m (D)" }}</div>
+                        {% for item in itens %}
+                        <button type="button"
+                                class="list-group-item list-group-item-action small abrir-cadastro"
+                                data-agenda-id="{{ item.agenda.id }}">
+                            <div class="fw-semibold">{{ item.unidade.nome|default:"Unidade não definida" }}</div>
+                            <div class="text-muted">{{ item.turno }} · {{ item.especialidade|default:"-" }}</div>
+                        </button>
+                        {% endfor %}
+                    {% empty %}
+                        <div class="list-group-item text-muted small">Nenhuma agenda em aberto este mês.</div>
+                    {% endfor %}
+                </div>
+            </div>
+        </aside>
+
+        <!-- Área principal -->
+        <main class="col-md-9">
+            <form method="get" class="row g-2 align-items-center mb-3">
+                <div class="col-auto">
+                    <a class="btn btn-outline-secondary" href="?semana={{ semana_anterior }}">&laquo; Semana</a>
+                </div>
+                <div class="col-auto">
+                    <a class="btn btn-outline-secondary" href="?semana={{ semana_proxima }}">Semana &raquo;</a>
+                </div>
+                <div class="col-auto fw-bold">
+                    {{ inicio_semana|date:"d/m" }} - {{ fim_semana|date:"d/m/Y" }}
+                </div>
+                <div class="col-3">
+                    <input type="text" name="q" value="{{ busca }}" class="form-control form-control-sm" placeholder="Buscar médico, sala, unidade...">
+                </div>
+                <div class="col-2">
+                    <select name="unidade" class="form-select form-select-sm">
+                        <option value="">Todas as unidades</option>
+                        {% for u in unidades %}
+                        <option value="{{ u.id }}" {% if unidade_filtro == u.id|stringformat:"s" %}selected{% endif %}>{{ u.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-auto">
+                    <button class="btn btn-primary btn-sm" type="submit">Filtrar</button>
+                </div>
+                <div class="col-auto ms-auto">
+                    <button type="button" class="btn btn-success btn-sm abrir-cadastro" data-agenda-id="">+ Nova Agenda</button>
+                </div>
+            </form>
+
+            <div class="row g-2 week-grid">
+                {% for dia in dias_semana %}
+                <div class="col day-column">
+                    <div class="day-header text-center p-2 {% if dia.data == hoje %}bg-primary text-white{% else %}bg-light{% endif %} rounded-top">
+                        <div class="fw-bold">{{ dia.nome }}</div>
+                        <div class="small">{{ dia.data|date:"d/m" }}</div>
+                    </div>
+                    <div class="day-body border rounded-bottom p-1">
+                        {% for evento in dia.eventos %}
+                        <div class="evento-card mb-2 p-2 rounded {% if not evento.tem_medico %}evento-vazio{% endif %} abrir-evento"
+                             style="border-left: 4px solid {{ evento.cor }};"
+                             data-agenda-id="{{ evento.agenda.id }}"
+                             data-tem-medico="{{ evento.tem_medico|yesno:'1,0' }}"
+                             data-data="{{ dia.data|date:'Y-m-d' }}">
+                            <div class="small text-muted">{{ evento.agenda.horario.horario_inicio|time:"H:i" }} - {{ evento.agenda.horario.horario_fim|time:"H:i" }}</div>
+                            <div class="fw-semibold">{{ evento.sala.nome|default:"Sala?" }}</div>
+                            <div class="small">
+                                {% if evento.tem_medico %}
+                                    {{ evento.agenda.medico_inicial.nome }}
+                                {% else %}
+                                    <span class="text-danger">Vaga em aberto</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted">{{ evento.unidade.nome }}</div>
+                        </div>
+                        {% empty %}
+                        <div class="text-muted small text-center py-3">Sem agendas</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </main>
+    </div>
+</div>
+{% endblock %}
