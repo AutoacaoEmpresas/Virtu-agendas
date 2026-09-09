@@ -18,6 +18,7 @@ from .models import (
 )
 
 DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+DIAS_SEMANA_ABREV = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
 VIEWS_VALIDAS = ("dia", "semana", "mes", "ano")
 VIEWS_LABELS = [("dia", "Dia"), ("semana", "Semana"), ("mes", "Mês"), ("ano", "Ano")]
 
@@ -63,6 +64,17 @@ def _somar_anos(dia, n):
 def _ultimo_dia_mes(primeiro_dia):
     proximo_mes = _somar_meses(primeiro_dia, 1)
     return proximo_mes - datetime.timedelta(days=1)
+
+
+def _datas_recorrentes(data_inicial, data_final, dia_semana, intervalo_semanas):
+    delta = (dia_semana - data_inicial.weekday()) % 7
+    primeira = data_inicial + datetime.timedelta(days=delta)
+    datas = []
+    atual = primeira
+    while atual <= data_final:
+        datas.append(atual)
+        atual += datetime.timedelta(weeks=intervalo_semanas)
+    return datas
 
 
 def _agendas_no_intervalo(inicio, fim, unidade_filtro, busca):
@@ -388,6 +400,7 @@ def cadastro_agenda(request, agenda_id=None):
         "horario_inicio_pref": horario_inicio_pref,
         "horario_fim_pref": horario_fim_pref,
         "procedimentos_agenda": procedimentos_agenda,
+        "dias_semana_opcoes": list(enumerate(DIAS_SEMANA_ABREV)),
     }
     return render(request, "agendas/partials/_cadastro_agenda.html", context)
 
@@ -427,11 +440,10 @@ def _salvar_agenda(request, agenda):
     if agenda:
         datas = [agenda.horario.data]
     elif frequencia == "semanal" and data_final > data_inicial:
-        datas = []
-        atual = data_inicial
-        while atual <= data_final:
-            datas.append(atual)
-            atual += datetime.timedelta(days=7)
+        dia_semana = post.get("dia_semana")
+        dia_semana = int(dia_semana) if dia_semana is not None and dia_semana != "" else data_inicial.weekday()
+        intervalo_semanas = 2 if post.get("intervalo_semanas") == "2" else 1
+        datas = _datas_recorrentes(data_inicial, data_final, dia_semana, intervalo_semanas)
     else:
         datas = [data_inicial]
 

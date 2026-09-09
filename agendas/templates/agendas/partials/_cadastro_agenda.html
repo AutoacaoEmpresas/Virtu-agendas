@@ -82,13 +82,35 @@
             <label class="form-label">Concierge</label>
             <input type="text" class="form-control" name="concierge" value="{{ agenda.concierge|default:'' }}">
         </div>
-        <div class="col-md-6">
+        <div class="col-md-6" id="bloco-frequencia">
             <label class="form-label">Frequência</label>
-            <select class="form-select" name="frequencia" {% if agenda %}disabled{% endif %}>
-                <option value="unica">Única</option>
-                <option value="semanal">Semanal (até Data Final)</option>
-            </select>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="frequencia" id="freq_unica" value="unica" checked {% if agenda %}disabled{% endif %}>
+                <label class="btn btn-outline-secondary btn-sm" for="freq_unica">Única</label>
+
+                <input type="radio" class="btn-check" name="frequencia" id="freq_recorrente" value="semanal" {% if agenda %}disabled{% endif %}>
+                <label class="btn btn-outline-secondary btn-sm" for="freq_recorrente">Recorrente</label>
+            </div>
             {% if agenda %}<div class="form-text">Recorrência só se aplica ao criar uma nova agenda.</div>{% endif %}
+
+            <div id="recorrencia-detalhes" class="mt-2" hidden>
+                <label class="form-label small mb-1">Intervalo</label>
+                <div class="btn-group w-100 mb-2" role="group">
+                    <input type="radio" class="btn-check" name="intervalo_semanas" id="intervalo_1" value="1" checked {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="intervalo_1">Toda semana</label>
+
+                    <input type="radio" class="btn-check" name="intervalo_semanas" id="intervalo_2" value="2" {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="intervalo_2">A cada 15 dias</label>
+                </div>
+
+                <label class="form-label small mb-1">Dia da semana</label>
+                <div class="btn-group w-100" role="group">
+                    {% for valor, rotulo in dias_semana_opcoes %}
+                    <input type="radio" class="btn-check" name="dia_semana" id="dia_semana_{{ valor }}" value="{{ valor }}" {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="dia_semana_{{ valor }}">{{ rotulo }}</label>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
 
         <div class="col-12">
