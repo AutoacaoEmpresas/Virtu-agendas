@@ -1,0 +1,11 @@
+<div class="ano-cabecalho mb-3">
+    <span class="fw-bold">{{ ano_ref }}</span>
+</div>
+
+<div class="ano-grid">
+    {% for mes in meses_ano %}
+    <div class="ano-mes-card">
+        {% include "agendas/partials/_mini_calendario.html" with mes_ref=mes.mes_ref semanas_mes=mes.semanas_mes cores_por_dia=mes.cores_por_dia hoje=hoje mes_link=mes.link %}
+    </div>
+    {% endfor %}
+</div>

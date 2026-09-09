@@ -1,3 +1,144 @@
+:root {
+    --accent: #7033ff;
+    --accent-hover: #5c28d9;
+    --accent-soft: rgba(112, 51, 255, 0.1);
+    --border-subtle: #e4e4e7;
+    --sidebar-bg: #18181b;
+    --sidebar-border: #2b2b31;
+    --sidebar-text: #e4e4e7;
+    --sidebar-muted: #9797a1;
+    --turno-manha-bg: #eef2ff;
+    --turno-manha-border: #4c6ef5;
+    --turno-tarde-bg: #fdf0f3;
+    --turno-tarde-border: #e64980;
+    --turno-noite-bg: #f4f4f5;
+    --turno-noite-border: #71717a;
+}
+
+html, body {
+    height: 100%;
+}
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #fafafa;
+    color: #18181b;
+    margin: 0;
+}
+
+/* --- Cor de destaque sobre os componentes Bootstrap --- */
+.btn-primary {
+    background-color: var(--accent);
+    border-color: var(--accent);
+}
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
+    background-color: var(--accent-hover) !important;
+    border-color: var(--accent-hover) !important;
+}
+.btn-outline-primary {
+    color: var(--accent);
+    border-color: var(--accent);
+}
+.btn-outline-primary:hover,
+.btn-outline-primary:focus,
+.btn-outline-primary:active {
+    background-color: var(--accent) !important;
+    border-color: var(--accent) !important;
+}
+.bg-primary {
+    background-color: var(--accent) !important;
+}
+.text-primary {
+    color: var(--accent) !important;
+}
+.border-primary {
+    border-color: var(--accent) !important;
+}
+.form-control:focus,
+.form-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 0.2rem var(--accent-soft);
+}
+a {
+    color: var(--accent);
+}
+
+/* --- Superfícies: cantos arredondados, bordas sutis --- */
+.card,
+.modal-content,
+.list-group {
+    border-radius: 0.75rem;
+    border-color: var(--border-subtle);
+}
+.card {
+    box-shadow: none;
+}
+.list-group-item {
+    border-color: var(--border-subtle);
+}
+
+/* ==================== Layout geral (sidebar + main) ==================== */
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+    align-items: stretch;
+}
+.app-sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    background: var(--sidebar-bg);
+    color: var(--sidebar-text);
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    overflow-y: auto;
+}
+.app-main {
+    flex: 1;
+    min-width: 0;
+    padding: 1rem 1.25rem;
+}
+
+.sidebar-icons {
+    display: flex;
+    gap: 0.5rem;
+}
+.icon-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sidebar-border);
+    background: transparent;
+    color: var(--sidebar-text);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    line-height: 1;
+}
+.icon-btn:disabled {
+    opacity: 0.5;
+}
+.icon-btn-accent {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+    font-weight: 700;
+}
+
+/* --- Mini-calendário (sidebar e view Ano) --- */
+.mini-calendario-card {
+    color: inherit;
+}
+.mini-calendario-titulo-link {
+    color: inherit;
+    text-decoration: none;
+}
+.mini-calendario-titulo-link:hover {
+    color: var(--accent);
+}
 .mini-calendar td { padding: 2px; }
 .mini-day {
     width: 28px;
@@ -7,40 +148,268 @@
     color: inherit;
     font-size: 0.8rem;
     position: relative;
+    border-radius: 0.5rem;
 }
-.mini-day .dot {
+.dots {
+    display: flex;
+    gap: 2px;
+    min-height: 6px;
+    margin-top: 1px;
+}
+.dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: #E64980;
-    margin-top: 1px;
 }
-.mini-day.bg-primary .dot { background: #fff; }
 
+.sidebar-abertas {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+.sidebar-title {
+    color: var(--sidebar-muted);
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.5rem;
+}
 .agendas-abertas-scroll {
-    max-height: 320px;
     overflow-y: auto;
+    flex: 1;
+}
+.abertas-grupo {
+    margin-bottom: 0.75rem;
+}
+.abertas-grupo-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    color: var(--sidebar-muted);
+    padding: 0.25rem 0.25rem 0.15rem;
+}
+.rotulo-hoje {
+    color: var(--accent);
+}
+.badge-urgente {
+    background: #ef4444;
+    color: #fff;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    border-radius: 0.35rem;
+    padding: 0.15rem 0.4rem;
+    display: inline-block;
+    margin: 0 0.25rem 0.25rem;
+}
+.abertas-item {
+    width: 100%;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--sidebar-text);
+    text-align: left;
+    padding: 0.4rem 0.25rem;
+    border-radius: 0.5rem;
+}
+.abertas-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+.abertas-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 0.35rem;
+    flex-shrink: 0;
+}
+.abertas-unidade {
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+.abertas-especialidade {
+    font-size: 0.75rem;
+    color: var(--sidebar-muted);
 }
 
+/* ==================== Barra superior ==================== */
+.app-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.btn-nav {
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    color: #18181b;
+}
+.btn-nav:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+.topbar-views {
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.6rem;
+    padding: 2px;
+}
+.view-pill {
+    color: #52525b;
+    border: none;
+    border-radius: 0.45rem !important;
+}
+.view-pill.active {
+    background: var(--accent);
+    color: #fff;
+}
+.topbar-filtros {
+    margin-left: auto;
+}
+.topbar-search {
+    width: 220px;
+}
+
+/* ==================== Grade de Semana/Dia ==================== */
 .week-grid {
     flex-wrap: nowrap;
     overflow-x: auto;
 }
 .day-column {
-    min-width: 150px;
+    min-width: 170px;
+}
+.day-header {
+    border: 1px solid var(--border-subtle);
+    border-bottom: none;
+    border-radius: 0.75rem 0.75rem 0 0;
 }
 .day-body {
     min-height: 420px;
     background: #fff;
+    border-color: var(--border-subtle) !important;
+    border-radius: 0 0 0.75rem 0.75rem;
+}
+.turno-banda {
+    border-radius: 0.5rem;
+    padding: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+.turno-manha { background: var(--turno-manha-bg); }
+.turno-tarde { background: var(--turno-tarde-bg); }
+.turno-noite { background: var(--turno-noite-bg); }
+.turno-label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #71717a;
+    margin-bottom: 0.25rem;
 }
 .evento-card {
-    background: #f8f9fa;
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.5rem !important;
     cursor: pointer;
-    transition: box-shadow 0.15s ease-in-out;
+    transition: box-shadow 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 .evento-card:hover {
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.15);
+    border-color: #d4d4d8;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
 }
 .evento-vazio {
-    background: repeating-linear-gradient(45deg, #fff, #fff 6px, #f1f3f5 6px, #f1f3f5 12px);
+    background: repeating-linear-gradient(45deg, #fff, #fff 6px, #f4f4f5 6px, #f4f4f5 12px);
+}
+
+.dia-coluna {
+    max-width: 720px;
+}
+.turno-banda-dia .dia-eventos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.5rem;
+}
+.evento-card-dia {
+    margin: 0;
+}
+
+/* ==================== Grade de Mês ==================== */
+.mes-grid {
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.75rem;
+    overflow: hidden;
+    background: #fff;
+}
+.mes-grid-linha {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+}
+.mes-grid-header {
+    background: #f4f4f5;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #71717a;
+    text-align: center;
+}
+.mes-grid-header > div {
+    padding: 0.4rem 0;
+}
+.mes-dia-cell {
+    min-height: 100px;
+    border-top: 1px solid var(--border-subtle);
+    border-left: 1px solid var(--border-subtle);
+    padding: 0.3rem;
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+.mes-dia-cell:hover {
+    background: #fafafa;
+}
+.mes-grid-linha > .mes-dia-cell:first-child {
+    border-left: none;
+}
+.mes-dia-numero {
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+}
+.mes-dia-outro-mes {
+    color: #a1a1aa;
+    background: #fafafa;
+}
+.mes-dia-hoje .mes-dia-numero {
+    color: var(--accent);
+}
+.mes-evento-chip {
+    font-size: 0.68rem;
+    background: #f4f4f5;
+    border-radius: 0.25rem;
+    padding: 0.1rem 0.3rem;
+    margin-bottom: 0.15rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.mes-evento-extra {
+    font-size: 0.68rem;
+    color: #71717a;
+}
+
+/* ==================== Grade de Ano ==================== */
+.ano-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1rem;
+}
+.ano-mes-card {
+    background: #fff;
+    border: 1px solid var(--border-subtle);
+    border-radius: 0.75rem;
+    padding: 0.75rem;
 }
