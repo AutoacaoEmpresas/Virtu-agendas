@@ -1,0 +1,28 @@
+<div class="mes-cabecalho mb-2">
+    <span class="fw-bold text-capitalize">{{ mes_atual_ref|date:"F Y" }}</span>
+</div>
+
+<div class="mes-grid">
+    <div class="mes-grid-linha mes-grid-header">
+        <div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div><div>Dom</div>
+    </div>
+    {% for semana in grid_mes %}
+    <div class="mes-grid-linha">
+        {% for dia in semana %}
+        <a href="?view=dia&data={{ dia.data|date:'Y-m-d' }}&q={{ busca }}&unidade={{ unidade_filtro }}"
+           class="mes-dia-cell {% if dia.outro_mes %}mes-dia-outro-mes{% endif %} {% if dia.data == hoje %}mes-dia-hoje{% endif %}">
+            <div class="mes-dia-numero">{{ dia.data.day }}</div>
+            {% for evento in dia.eventos_resumo %}
+            <div class="mes-evento-chip" style="border-left: 3px solid {{ evento.cor }};">
+                {{ evento.sala.nome|default:"Sala?" }}
+                {% if not evento.tem_medico %}<span class="text-danger">&middot; aberto</span>{% endif %}
+            </div>
+            {% endfor %}
+            {% if dia.eventos_extra %}
+            <div class="mes-evento-extra">+{{ dia.eventos_extra }} mais</div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>

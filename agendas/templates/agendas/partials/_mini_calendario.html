@@ -1,0 +1,38 @@
+{% load agendas_extras %}
+<div class="mini-calendario-card">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+        {% if mes_link %}
+        <a href="{{ mes_link }}" class="fw-bold text-capitalize mini-calendario-titulo-link">{{ mes_ref|date:"F Y" }}</a>
+        {% else %}
+        <strong class="text-capitalize">{{ mes_ref|date:"F Y" }}</strong>
+        {% endif %}
+    </div>
+    <table class="table table-sm table-borderless text-center mb-0 mini-calendar">
+        <thead>
+            <tr class="text-muted small">
+                <th>S</th><th>T</th><th>Q</th><th>Q</th><th>S</th><th>S</th><th>D</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for semana in semanas_mes %}
+            <tr>
+                {% for dia in semana %}
+                <td>
+                    <a href="?view=dia&data={{ dia|date:'Y-m-d' }}"
+                       class="mini-day d-inline-flex flex-column align-items-center
+                              {% if dia.month != mes_ref.month %}text-muted opacity-50{% endif %}
+                              {% if dia == hoje %}bg-primary text-white rounded{% endif %}">
+                        {{ dia.day }}
+                        <span class="dots">
+                        {% for cor in cores_por_dia|get_item:dia %}
+                            <span class="dot" style="background:{{ cor }};"></span>
+                        {% endfor %}
+                        </span>
+                    </a>
+                </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>

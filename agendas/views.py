@@ -18,6 +18,8 @@ from .models import (
 )
 
 DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
+VIEWS_VALIDAS = ("dia", "semana", "mes", "ano")
+VIEWS_LABELS = [("dia", "Dia"), ("semana", "Semana"), ("mes", "Mês"), ("ano", "Ano")]
 
 # Paleta simples para colorir eventos por unidade (ciclo).
 CORES_UNIDADE = [
@@ -44,24 +46,33 @@ def _monday(date):
     return date - datetime.timedelta(days=date.weekday())
 
 
-def home(request):
-    hoje = datetime.date.today()
-    semana_ref = _parse_date(request.GET.get("semana"), hoje)
-    inicio_semana = _monday(semana_ref)
-    fim_semana = inicio_semana + datetime.timedelta(days=6)
+def _somar_meses(dia, n):
+    mes_total = dia.month - 1 + n
+    ano = dia.year + mes_total // 12
+    mes = mes_total % 12 + 1
+    return dia.replace(year=ano, month=mes, day=1)
 
-    busca = request.GET.get("q", "").strip()
-    unidade_filtro = request.GET.get("unidade", "").strip()
 
+def _somar_anos(dia, n):
+    try:
+        return dia.replace(year=dia.year + n)
+    except ValueError:
+        return dia.replace(year=dia.year + n, day=28)
+
+
+def _ultimo_dia_mes(primeiro_dia):
+    proximo_mes = _somar_meses(primeiro_dia, 1)
+    return proximo_mes - datetime.timedelta(days=1)
+
+
+def _agendas_no_intervalo(inicio, fim, unidade_filtro, busca):
     agendas_qs = (
         Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido")
         .prefetch_related("horario__salas__unidade")
-        .filter(horario__data__range=[inicio_semana, fim_semana])
+        .filter(horario__data__range=[inicio, fim])
     )
-
     if unidade_filtro:
         agendas_qs = agendas_qs.filter(horario__salas__unidade_id=unidade_filtro)
-
     if busca:
         agendas_qs = agendas_qs.filter(
             Q(medico_inicial__nome__icontains=busca)
@@ -70,81 +81,210 @@ def home(request):
             | Q(horario__salas__especialidade__icontains=busca)
             | Q(horario__salas__unidade__nome__icontains=busca)
         )
+    return agendas_qs.distinct().order_by("horario__data", "horario__horario_inicio")
 
-    agendas_qs = agendas_qs.distinct().order_by("horario__data", "horario__horario_inicio")
 
-    dias_semana = []
-    for i in range(7):
-        dia = inicio_semana + datetime.timedelta(days=i)
-        eventos = []
-        for ag in agendas_qs:
-            if ag.horario.data != dia:
-                continue
-            sala = ag.sala
-            eventos.append(
-                {
-                    "agenda": ag,
-                    "sala": sala,
-                    "unidade": sala.unidade if sala else None,
-                    "cor": _cor_unidade(sala.unidade_id if sala else None),
-                    "tem_medico": ag.medico_inicial_id is not None,
-                }
-            )
-        dias_semana.append({"data": dia, "nome": DIAS_SEMANA[i], "eventos": eventos})
-
-    # Mini-calendário do mês da semana selecionada.
-    mes_ref = inicio_semana.replace(day=1)
-    cal = calendar.Calendar(firstweekday=0)
-    semanas_mes = cal.monthdatescalendar(mes_ref.year, mes_ref.month)
-    primeiro_dia_mes = mes_ref
-    if mes_ref.month == 12:
-        ultimo_dia_mes = mes_ref.replace(day=31)
-    else:
-        ultimo_dia_mes = mes_ref.replace(month=mes_ref.month + 1, day=1) - datetime.timedelta(days=1)
-
-    dias_com_agenda = set(
-        Horario.objects.filter(
-            data__range=[semanas_mes[0][0], semanas_mes[-1][-1]]
-        ).values_list("data", flat=True)
-    )
-
-    # Lista lateral de agendas abertas (sem médico alocado) do mês corrente.
-    abertas_qs = (
-        Agenda.objects.select_related("horario")
-        .prefetch_related("horario__salas__unidade")
-        .filter(
-            medico_inicial__isnull=True,
-            horario__data__range=[primeiro_dia_mes, ultimo_dia_mes],
-        )
-        .order_by("horario__data", "horario__horario_inicio")
-    )
-    agendas_abertas_por_dia = defaultdict(list)
-    for ag in abertas_qs:
+def _montar_dia(dia, agendas_qs, nome=None):
+    eventos = []
+    for ag in agendas_qs:
+        if ag.horario.data != dia:
+            continue
         sala = ag.sala
-        agendas_abertas_por_dia[ag.horario.data].append(
+        eventos.append(
             {
                 "agenda": ag,
+                "sala": sala,
                 "unidade": sala.unidade if sala else None,
-                "especialidade": sala.especialidade if sala else "",
+                "cor": _cor_unidade(sala.unidade_id if sala else None),
+                "tem_medico": ag.medico_inicial_id is not None,
                 "turno": ag.horario.turno,
             }
         )
+    turnos = {"Manhã": [], "Tarde": [], "Noite": []}
+    for evento in eventos:
+        turnos[evento["turno"]].append(evento)
 
-    context = {
+    resultado = {"data": dia, "eventos": eventos, "turnos": turnos}
+    if nome:
+        resultado["nome"] = nome
+    return resultado
+
+
+def _cores_por_dia(data_inicio, data_fim):
+    cores = defaultdict(list)
+    agendas = (
+        Agenda.objects.select_related("horario")
+        .prefetch_related("horario__salas__unidade")
+        .filter(horario__data__range=[data_inicio, data_fim])
+        .order_by("horario__data", "horario__horario_inicio")
+    )
+    for ag in agendas:
+        sala = ag.sala
+        cor = _cor_unidade(sala.unidade_id if sala else None)
+        dia_cores = cores[ag.horario.data]
+        if cor not in dia_cores and len(dia_cores) < 3:
+            dia_cores.append(cor)
+    return cores
+
+
+def _construir_mini_mes(ano, mes):
+    mes_ref = datetime.date(ano, mes, 1)
+    cal = calendar.Calendar(firstweekday=0)
+    semanas_mes = cal.monthdatescalendar(ano, mes)
+    cores_por_dia = _cores_por_dia(semanas_mes[0][0], semanas_mes[-1][-1])
+    return {"mes_ref": mes_ref, "semanas_mes": semanas_mes, "cores_por_dia": cores_por_dia}
+
+
+def _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes):
+    abertas_qs = (
+        Agenda.objects.select_related("horario")
+        .prefetch_related("horario__salas__unidade")
+        .filter(medico_inicial__isnull=True, horario__data__range=[primeiro_dia_mes, ultimo_dia_mes])
+        .order_by("horario__data", "horario__horario_inicio")
+    )
+    agrupado = defaultdict(list)
+    for ag in abertas_qs:
+        sala = ag.sala
+        unidade = sala.unidade if sala else None
+        dias_ate = (ag.horario.data - hoje).days
+        agrupado[ag.horario.data].append(
+            {
+                "agenda": ag,
+                "unidade": unidade,
+                "especialidade": sala.especialidade if sala else "",
+                "turno": ag.horario.turno,
+                "cor": _cor_unidade(unidade.id if unidade else None),
+                "urgente": 0 <= dias_ate <= 15,
+            }
+        )
+
+    amanha = hoje + datetime.timedelta(days=1)
+    grupos = []
+    for dia, itens in sorted(agrupado.items()):
+        if dia == hoje:
+            rotulo = "HOJE"
+        elif dia == amanha:
+            rotulo = "AMANHÃ"
+        else:
+            nome = DIAS_SEMANA[dia.weekday()].upper()
+            rotulo = f"{nome}-FEIRA" if dia.weekday() < 5 else nome
+        grupos.append({"data": dia, "rotulo": rotulo, "itens": itens})
+    return grupos
+
+
+def _contexto_dia(data_ref, unidade_filtro, busca):
+    agendas_qs = _agendas_no_intervalo(data_ref, data_ref, unidade_filtro, busca)
+    dia_atual = _montar_dia(data_ref, agendas_qs, nome=DIAS_SEMANA[data_ref.weekday()])
+    return {
+        "dia_atual": dia_atual,
+        "anterior": (data_ref - datetime.timedelta(days=1)).isoformat(),
+        "proximo": (data_ref + datetime.timedelta(days=1)).isoformat(),
+    }
+
+
+def _contexto_semana(data_ref, unidade_filtro, busca):
+    inicio_semana = _monday(data_ref)
+    fim_semana = inicio_semana + datetime.timedelta(days=6)
+    agendas_qs = _agendas_no_intervalo(inicio_semana, fim_semana, unidade_filtro, busca)
+    dias_semana = [
+        _montar_dia(inicio_semana + datetime.timedelta(days=i), agendas_qs, nome=DIAS_SEMANA[i])
+        for i in range(7)
+    ]
+    return {
         "inicio_semana": inicio_semana,
         "fim_semana": fim_semana,
-        "semana_anterior": (inicio_semana - datetime.timedelta(days=7)).isoformat(),
-        "semana_proxima": (inicio_semana + datetime.timedelta(days=7)).isoformat(),
         "dias_semana": dias_semana,
+        "anterior": (inicio_semana - datetime.timedelta(days=7)).isoformat(),
+        "proximo": (inicio_semana + datetime.timedelta(days=7)).isoformat(),
+    }
+
+
+def _contexto_mes(data_ref, unidade_filtro, busca):
+    mes_ref = data_ref.replace(day=1)
+    cal = calendar.Calendar(firstweekday=0)
+    semanas_mes = cal.monthdatescalendar(mes_ref.year, mes_ref.month)
+    agendas_qs = _agendas_no_intervalo(semanas_mes[0][0], semanas_mes[-1][-1], unidade_filtro, busca)
+
+    grid = []
+    for semana in semanas_mes:
+        linha = []
+        for dia in semana:
+            montado = _montar_dia(dia, agendas_qs)
+            eventos = montado["eventos"]
+            linha.append(
+                {
+                    "data": dia,
+                    "outro_mes": dia.month != mes_ref.month,
+                    "eventos_resumo": eventos[:3],
+                    "eventos_extra": max(0, len(eventos) - 3),
+                }
+            )
+        grid.append(linha)
+
+    return {
+        "mes_atual_ref": mes_ref,
+        "grid_mes": grid,
+        "anterior": _somar_meses(mes_ref, -1).isoformat(),
+        "proximo": _somar_meses(mes_ref, 1).isoformat(),
+    }
+
+
+def _contexto_ano(data_ref, unidade_filtro, busca):
+    ano_ref = data_ref.year
+    meses_ano = []
+    for mes in range(1, 13):
+        info = _construir_mini_mes(ano_ref, mes)
+        info["link"] = f"?view=mes&data={info['mes_ref'].isoformat()}&q={busca}&unidade={unidade_filtro}"
+        meses_ano.append(info)
+    return {
+        "ano_ref": ano_ref,
+        "meses_ano": meses_ano,
+        "anterior": _somar_anos(data_ref, -1).isoformat(),
+        "proximo": _somar_anos(data_ref, 1).isoformat(),
+    }
+
+
+def home(request):
+    hoje = datetime.date.today()
+    view = request.GET.get("view", "semana")
+    if view not in VIEWS_VALIDAS:
+        view = "semana"
+
+    data_param = request.GET.get("data") or request.GET.get("semana")
+    data_ref = _parse_date(data_param, hoje)
+
+    busca = request.GET.get("q", "").strip()
+    unidade_filtro = request.GET.get("unidade", "").strip()
+
+    construtores = {
+        "dia": _contexto_dia,
+        "semana": _contexto_semana,
+        "mes": _contexto_mes,
+        "ano": _contexto_ano,
+    }
+    contexto_view = construtores[view](data_ref, unidade_filtro, busca)
+
+    mes_mini_ref = contexto_view.get("inicio_semana", data_ref)
+    mini_mes = _construir_mini_mes(mes_mini_ref.year, mes_mini_ref.month)
+
+    primeiro_dia_mes = mini_mes["mes_ref"]
+    ultimo_dia_mes = _ultimo_dia_mes(primeiro_dia_mes)
+    agendas_abertas_grupos = _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes)
+
+    context = {
+        "view": view,
+        "views_labels": VIEWS_LABELS,
+        "data_ref": data_ref.isoformat(),
+        "hoje": hoje,
         "unidades": Unidade.objects.all(),
         "busca": busca,
         "unidade_filtro": unidade_filtro,
-        "mes_ref": mes_ref,
-        "semanas_mes": semanas_mes,
-        "dias_com_agenda": dias_com_agenda,
-        "hoje": hoje,
-        "agendas_abertas_por_dia": sorted(agendas_abertas_por_dia.items()),
+        "mes_ref": mini_mes["mes_ref"],
+        "semanas_mes": mini_mes["semanas_mes"],
+        "cores_por_dia": mini_mes["cores_por_dia"],
+        "agendas_abertas_grupos": agendas_abertas_grupos,
     }
+    context.update(contexto_view)
     return render(request, "agendas/home.html", context)
 
 
