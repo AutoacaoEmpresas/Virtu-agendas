@@ -18,9 +18,9 @@ from agendas.models import (
 )
 
 UNIDADES = [
-    "Hospital de Olhos Central",
-    "Clínica Visão Norte",
-    "Clínica Visão Sul",
+    "Hospital Evangélico - BH",
+    "Centro de Oftalmologia - ITAÚNA",
+    "Hospital de Olhos - Nova Lima",
 ]
 
 ESPECIALIDADES_SALA = ["Consultório Oftalmológico", "Centro Cirúrgico", "Sala de Exames"]

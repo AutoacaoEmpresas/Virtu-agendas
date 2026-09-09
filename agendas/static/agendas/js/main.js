@@ -51,6 +51,30 @@ function initCadastroForm() {
     if (unidadeSelect) {
         filtrarPorUnidade(unidadeSelect.value);
     }
+    initFrequenciaToggle();
+}
+
+function marcarDiaSemanaPorData(dataStr, force) {
+    if (!dataStr) return;
+    const data = new Date(dataStr + "T00:00:00");
+    if (isNaN(data)) return;
+    const diaSemana = (data.getDay() + 6) % 7; // getDay(): 0=Domingo..6=Sábado -> 0=Segunda..6=Domingo
+    const radio = document.getElementById(`dia_semana_${diaSemana}`);
+    if (radio && (force || !document.querySelector('[name="dia_semana"]:checked'))) {
+        radio.checked = true;
+    }
+}
+
+function initFrequenciaToggle() {
+    const detalhes = document.getElementById("recorrencia-detalhes");
+    const recorrenteRadio = document.getElementById("freq_recorrente");
+    if (!detalhes || !recorrenteRadio) return;
+    detalhes.hidden = !recorrenteRadio.checked;
+
+    const dataInicialInput = document.querySelector('[name="data_inicial"]');
+    if (dataInicialInput) {
+        marcarDiaSemanaPorData(dataInicialInput.value, false);
+    }
 }
 
 document.addEventListener("click", function (e) {
@@ -113,5 +137,12 @@ document.addEventListener("submit", function (e) {
 document.addEventListener("change", function (e) {
     if (e.target.id === "id_unidade") {
         filtrarPorUnidade(e.target.value);
+    }
+    if (e.target.name === "frequencia") {
+        const detalhes = document.getElementById("recorrencia-detalhes");
+        if (detalhes) detalhes.hidden = e.target.value !== "semanal";
+    }
+    if (e.target.name === "data_inicial") {
+        marcarDiaSemanaPorData(e.target.value, true);
     }
 });

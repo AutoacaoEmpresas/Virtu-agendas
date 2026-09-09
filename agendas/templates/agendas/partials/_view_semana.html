@@ -1,0 +1,45 @@
+<div class="semana-cabecalho mb-2">
+    <span class="fw-bold">{{ inicio_semana|date:"d/m" }} - {{ fim_semana|date:"d/m/Y" }}</span>
+</div>
+
+<div class="row g-2 week-grid">
+    {% for dia in dias_semana %}
+    <div class="col day-column">
+        <div class="day-header text-center p-2 {% if dia.data == hoje %}bg-primary text-white{% else %}bg-light{% endif %} rounded-top">
+            <div class="fw-bold">{{ dia.nome }}</div>
+            <div class="small">{{ dia.data|date:"d/m" }}</div>
+        </div>
+        <div class="day-body border rounded-bottom p-1">
+            {% if not dia.eventos %}
+            <div class="text-muted small text-center py-3">Sem agendas</div>
+            {% else %}
+                {% for turno_nome, eventos in dia.turnos.items %}
+                    {% if eventos %}
+                    <div class="turno-banda {% if turno_nome == 'Manhã' %}turno-manha{% elif turno_nome == 'Tarde' %}turno-tarde{% else %}turno-noite{% endif %}">
+                        <div class="turno-label">{{ turno_nome }}</div>
+                        {% for evento in eventos %}
+                        <div class="evento-card mb-2 p-2 rounded {% if not evento.tem_medico %}evento-vazio{% endif %} abrir-evento"
+                             style="border-left: 4px solid {{ evento.cor }};"
+                             data-agenda-id="{{ evento.agenda.id }}"
+                             data-tem-medico="{{ evento.tem_medico|yesno:'1,0' }}"
+                             data-data="{{ dia.data|date:'Y-m-d' }}">
+                            <div class="small text-muted">{{ evento.agenda.horario.horario_inicio|time:"H:i" }} - {{ evento.agenda.horario.horario_fim|time:"H:i" }}</div>
+                            <div class="fw-semibold">{{ evento.sala.nome|default:"Sala?" }}</div>
+                            <div class="small">
+                                {% if evento.tem_medico %}
+                                    {{ evento.agenda.medico_inicial.nome }}
+                                {% else %}
+                                    <span class="text-danger">Vaga em aberto</span>
+                                {% endif %}
+                            </div>
+                            <div class="small text-muted">{{ evento.unidade.nome }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
