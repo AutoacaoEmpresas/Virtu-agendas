@@ -107,7 +107,7 @@ Cada classe aqui vira uma **tabela** no banco. Cada atributo vira uma **coluna**
 - **`@property`**: um método que se comporta como atributo. Ex:
   - `Horario.turno`: calcula "Manhã/Tarde/Noite" a partir do horário de início — não fica salvo no banco, é calculado toda vez que você acessa `horario.turno`.
   - `Agenda.sala` / `Agenda.unidade`: atalhos pra não escrever `agenda.horario.salas.first()` toda hora.
-  - `Agenda.valor_previsto`: soma `valor_base * esperanca_pacientes` de cada procedimento da agenda — é a regra de negócio "quanto essa agenda deve faturar".
+  - `Agenda.valor_previsto` / `Agenda.valor_real`: calculados a partir dos procedimentos da agenda, nunca editados diretamente. Se `tipo_calculo_pagamento` for "Por Procedimento", soma o `valor_base` inteiro de cada procedimento; se for "Por Paciente", multiplica o `valor_base` pela quantidade de pacientes (`esperanca_pacientes` pro previsto, `real_pacientes` pro real).
 
 ### Mapa das entidades
 

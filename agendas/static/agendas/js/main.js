@@ -52,6 +52,43 @@ function initCadastroForm() {
         filtrarPorUnidade(unidadeSelect.value);
     }
     initFrequenciaToggle();
+    recalcularValores();
+}
+
+function formatarMoeda(valor) {
+    return "R$ " + valor.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function recalcularValores() {
+    const previstoEl = document.getElementById("valor-previsto");
+    const realEl = document.getElementById("valor-real");
+    if (!previstoEl || !realEl) return;
+
+    const porProcedimento = document.getElementById("calc_procedimento")
+        ? document.getElementById("calc_procedimento").checked
+        : true;
+
+    let totalPrevisto = 0;
+    let totalReal = 0;
+    document.querySelectorAll(".linha-procedimento").forEach((linha) => {
+        const select = linha.querySelector('select[name="procedimento[]"]');
+        const opt = select ? select.selectedOptions[0] : null;
+        const valorBase = opt && opt.dataset.valor ? parseFloat(opt.dataset.valor) : 0;
+        if (!valorBase) return;
+
+        const esperancaInput = linha.querySelector('input[name="esperanca_pacientes[]"]');
+        const realInput = linha.querySelector('input[name="real_pacientes[]"]');
+        const esperanca = esperancaInput && esperancaInput.value ? parseInt(esperancaInput.value, 10) : 0;
+        const real = realInput && realInput.value ? parseInt(realInput.value, 10) : 0;
+
+        totalPrevisto += porProcedimento ? valorBase : valorBase * esperanca;
+        if (real) {
+            totalReal += porProcedimento ? valorBase : valorBase * real;
+        }
+    });
+
+    previstoEl.textContent = formatarMoeda(totalPrevisto);
+    realEl.textContent = formatarMoeda(totalReal);
 }
 
 function marcarDiaSemanaPorData(dataStr, force) {
@@ -110,6 +147,7 @@ document.addEventListener("click", function (e) {
         });
         clone.querySelectorAll("select").forEach((s) => (s.value = ""));
         tbody.appendChild(clone);
+        recalcularValores();
         return;
     }
 
@@ -118,6 +156,7 @@ document.addEventListener("click", function (e) {
         const tbody = document.getElementById("procedimentos-body");
         if (tbody.querySelectorAll(".linha-procedimento").length > 1) {
             removeBtn.closest(".linha-procedimento").remove();
+            recalcularValores();
         }
         return;
     }
@@ -144,5 +183,19 @@ document.addEventListener("change", function (e) {
     }
     if (e.target.name === "data_inicial") {
         marcarDiaSemanaPorData(e.target.value, true);
+    }
+    if (
+        e.target.name === "procedimento[]" ||
+        e.target.name === "esperanca_pacientes[]" ||
+        e.target.name === "real_pacientes[]" ||
+        e.target.name === "tipo_calculo_pagamento"
+    ) {
+        recalcularValores();
+    }
+});
+
+document.addEventListener("input", function (e) {
+    if (e.target.name === "esperanca_pacientes[]" || e.target.name === "real_pacientes[]") {
+        recalcularValores();
     }
 });

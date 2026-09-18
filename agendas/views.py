@@ -431,7 +431,6 @@ def _salvar_agenda(request, agenda):
     horario_fim = post.get("horario_fim") or "12:00"
     concierge = post.get("concierge", "")
     tipo_calculo_pagamento = post.get("tipo_calculo_pagamento") == "procedimento"
-    valor_real = post.get("valor_real") or None
 
     procedimento_ids = post.getlist("procedimento[]")
     esperancas = post.getlist("esperanca_pacientes[]")
@@ -466,7 +465,6 @@ def _salvar_agenda(request, agenda):
 
         agenda.concierge = concierge
         agenda.tipo_calculo_pagamento = tipo_calculo_pagamento
-        agenda.valor_real = valor_real
         agenda.confirmacao_medico = confirmacao_medico
         agenda.medico_inicial_id = medico_inicial_id
         agenda.medico_atendido_id = medico_atendido_id
