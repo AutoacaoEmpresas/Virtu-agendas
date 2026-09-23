@@ -138,7 +138,6 @@ class Agenda(models.Model):
     tipo_calculo_pagamento = models.BooleanField(
         default=True, help_text="True = Por Procedimento, False = Por Paciente"
     )
-    valor_real = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     confirmacao_medico = models.BooleanField(default=False)
     horario = models.OneToOneField(Horario, on_delete=models.CASCADE, related_name="agenda")
     medico_inicial = models.ForeignKey(
@@ -172,7 +171,22 @@ class Agenda(models.Model):
     def valor_previsto(self):
         total = 0
         for pa in self.procedimentoagenda_set.select_related("procedimento").all():
-            total += pa.procedimento.valor_base * pa.esperanca_pacientes
+            if self.tipo_calculo_pagamento:
+                total += pa.procedimento.valor_base
+            else:
+                total += pa.procedimento.valor_base * pa.esperanca_pacientes
+        return total
+
+    @property
+    def valor_real(self):
+        total = 0
+        for pa in self.procedimentoagenda_set.select_related("procedimento").all():
+            if not pa.real_pacientes:
+                continue
+            if self.tipo_calculo_pagamento:
+                total += pa.procedimento.valor_base
+            else:
+                total += pa.procedimento.valor_base * pa.real_pacientes
         return total
 
 

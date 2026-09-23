@@ -18,9 +18,9 @@ from agendas.models import (
 )
 
 UNIDADES = [
-    "Hospital de Olhos Central",
-    "Clínica Visão Norte",
-    "Clínica Visão Sul",
+    "Hospital Evangélico - BH",
+    "Centro de Oftalmologia - ITAÚNA",
+    "Hospital de Olhos - Nova Lima",
 ]
 
 ESPECIALIDADES_SALA = ["Consultório Oftalmológico", "Centro Cirúrgico", "Sala de Exames"]
@@ -167,7 +167,6 @@ class Command(BaseCommand):
                     agenda = Agenda.objects.create(
                         concierge=random.choice(CONCIERGES),
                         tipo_calculo_pagamento=random.random() > 0.5,
-                        valor_real=None,
                         confirmacao_medico=confirmado if not medico_substituto else True,
                         horario=horario,
                         medico_inicial=medico_inicial,

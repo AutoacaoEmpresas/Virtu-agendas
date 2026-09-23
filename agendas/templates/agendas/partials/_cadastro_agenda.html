@@ -82,13 +82,35 @@
             <label class="form-label">Concierge</label>
             <input type="text" class="form-control" name="concierge" value="{{ agenda.concierge|default:'' }}">
         </div>
-        <div class="col-md-6">
+        <div class="col-md-6" id="bloco-frequencia">
             <label class="form-label">Frequência</label>
-            <select class="form-select" name="frequencia" {% if agenda %}disabled{% endif %}>
-                <option value="unica">Única</option>
-                <option value="semanal">Semanal (até Data Final)</option>
-            </select>
+            <div class="btn-group w-100" role="group">
+                <input type="radio" class="btn-check" name="frequencia" id="freq_unica" value="unica" checked {% if agenda %}disabled{% endif %}>
+                <label class="btn btn-outline-secondary btn-sm" for="freq_unica">Única</label>
+
+                <input type="radio" class="btn-check" name="frequencia" id="freq_recorrente" value="semanal" {% if agenda %}disabled{% endif %}>
+                <label class="btn btn-outline-secondary btn-sm" for="freq_recorrente">Recorrente</label>
+            </div>
             {% if agenda %}<div class="form-text">Recorrência só se aplica ao criar uma nova agenda.</div>{% endif %}
+
+            <div id="recorrencia-detalhes" class="mt-2" hidden>
+                <label class="form-label small mb-1">Intervalo</label>
+                <div class="btn-group w-100 mb-2" role="group">
+                    <input type="radio" class="btn-check" name="intervalo_semanas" id="intervalo_1" value="1" checked {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="intervalo_1">Toda semana</label>
+
+                    <input type="radio" class="btn-check" name="intervalo_semanas" id="intervalo_2" value="2" {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="intervalo_2">A cada 15 dias</label>
+                </div>
+
+                <label class="form-label small mb-1">Dia da semana</label>
+                <div class="btn-group w-100" role="group">
+                    {% for valor, rotulo in dias_semana_opcoes %}
+                    <input type="radio" class="btn-check" name="dia_semana" id="dia_semana_{{ valor }}" value="{{ valor }}" {% if agenda %}disabled{% endif %}>
+                    <label class="btn btn-outline-secondary btn-sm" for="dia_semana_{{ valor }}">{{ rotulo }}</label>
+                    {% endfor %}
+                </div>
+            </div>
         </div>
 
         <div class="col-12">
@@ -118,7 +140,7 @@
                                 {% endfor %}
                             </select>
                         </td>
-                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="{{ pa.esperanca_pacientes }}"></td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="{{ pa.esperanca_pacientes }}" {% if agenda %}readonly{% endif %}></td>
                         <td><input type="number" min="0" class="form-control form-control-sm" name="real_pacientes[]" value="{{ pa.real_pacientes|default_if_none:'' }}"></td>
                         <td><button type="button" class="btn btn-sm btn-outline-danger btn-remover-linha">&times;</button></td>
                     </tr>
@@ -132,7 +154,7 @@
                                 {% endfor %}
                             </select>
                         </td>
-                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="1"></td>
+                        <td><input type="number" min="0" class="form-control form-control-sm" name="esperanca_pacientes[]" value="1" {% if agenda %}readonly{% endif %}></td>
                         <td><input type="number" min="0" class="form-control form-control-sm" name="real_pacientes[]"></td>
                         <td><button type="button" class="btn btn-sm btn-outline-danger btn-remover-linha">&times;</button></td>
                     </tr>
@@ -146,11 +168,11 @@
     <div class="d-flex gap-3 align-items-center">
         <div>
             <span class="text-muted small">Valor Previsto:</span>
-            <strong id="valor-previsto">R$ {{ agenda.valor_previsto|default:"0,00" }}</strong>
+            <strong id="valor-previsto">R$ 0,00</strong>
         </div>
         <div>
-            <label class="small text-muted mb-0">Valor Real</label>
-            <input type="number" step="0.01" class="form-control form-control-sm" name="valor_real" value="{{ agenda.valor_real|default_if_none:'' }}" style="width:120px;">
+            <span class="text-muted small">Valor Real:</span>
+            <strong id="valor-real">R$ 0,00</strong>
         </div>
         <div class="btn-group" role="group">
             <input type="radio" class="btn-check" name="tipo_calculo_pagamento" id="calc_procedimento" value="procedimento"
