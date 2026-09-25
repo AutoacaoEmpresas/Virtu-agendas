@@ -39,6 +39,35 @@ function loadMedicoForm(medicoId) {
     });
 }
 
+function loadConciergeForm(usuarioId) {
+    const url = usuarioId ? `/cadastros/concierges/${usuarioId}/editar/` : "/cadastros/concierges/novo/";
+    fetch(url).then((r) => r.text()).then((html) => {
+        document.getElementById("modalConciergeContent").innerHTML = html;
+        getModal("modalConcierge").show();
+    });
+}
+
+function initSidebarToggle() {
+    const sidebar = document.getElementById("appSidebar");
+    const botao = document.getElementById("btn-toggle-sidebar");
+    if (!sidebar || !botao) return;
+
+    let recolhida = false;
+    try {
+        recolhida = localStorage.getItem("virtu-sidebar-recolhida") === "1";
+    } catch (e) {}
+    sidebar.classList.toggle("collapsed", recolhida);
+
+    botao.addEventListener("click", function () {
+        const agoraRecolhida = sidebar.classList.toggle("collapsed");
+        try {
+            localStorage.setItem("virtu-sidebar-recolhida", agoraRecolhida ? "1" : "0");
+        } catch (e) {}
+    });
+}
+
+document.addEventListener("DOMContentLoaded", initSidebarToggle);
+
 function filtrarPorUnidade(unidadeId) {
     document.querySelectorAll("#id_sala option[data-unidade]").forEach((opt) => {
         opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
@@ -179,6 +208,20 @@ document.addEventListener("click", function (e) {
     if (excluirMedicoBtn) {
         if (confirm("Excluir este médico? Essa ação não pode ser desfeita.")) {
             document.getElementById(`form-excluir-medico-${excluirMedicoBtn.dataset.medicoId}`).submit();
+        }
+        return;
+    }
+
+    const abrirConciergeBtn = e.target.closest(".abrir-concierge");
+    if (abrirConciergeBtn) {
+        loadConciergeForm(abrirConciergeBtn.dataset.conciergeId);
+        return;
+    }
+
+    const excluirConciergeBtn = e.target.closest(".btn-excluir-concierge");
+    if (excluirConciergeBtn) {
+        if (confirm("Excluir este concierge? Essa ação não pode ser desfeita.")) {
+            document.getElementById(`form-excluir-concierge-${excluirConciergeBtn.dataset.conciergeId}`).submit();
         }
         return;
     }

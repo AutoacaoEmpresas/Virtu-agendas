@@ -151,6 +151,108 @@ a.icon-btn {
     color: var(--accent);
 }
 
+/* --- Sidebar recolhível --- */
+.app-sidebar {
+    transition: width 0.15s ease;
+}
+#btn-toggle-sidebar {
+    cursor: pointer;
+}
+.app-sidebar.collapsed {
+    width: 64px;
+    overflow: visible;
+}
+.app-sidebar.collapsed .sidebar-tabs,
+.app-sidebar.collapsed .sidebar-conteudo,
+.app-sidebar.collapsed .sidebar-user-info,
+.app-sidebar.collapsed .sidebar-user a,
+.app-sidebar.collapsed .sidebar-user form,
+.app-sidebar.collapsed .icon-btn-accent,
+.app-sidebar.collapsed a.icon-btn {
+    display: none;
+}
+
+/* --- Abas Agenda / Cadastros --- */
+.sidebar-tabs {
+    display: flex;
+    gap: 0.25rem;
+    border-bottom: 1px solid var(--sidebar-border);
+    padding-bottom: 0.5rem;
+}
+.sidebar-tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.35rem 0;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    color: var(--sidebar-muted);
+    text-decoration: none;
+}
+.sidebar-tab.active {
+    background: var(--sidebar-active, rgba(255,255,255,0.08));
+    color: var(--sidebar-text);
+    font-weight: 600;
+}
+
+.sidebar-conteudo {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+/* --- Navegação da área de Cadastros --- */
+.sidebar-cadastros-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+.cadastro-nav-item {
+    padding: 0.5rem 0.6rem;
+    border-radius: 0.5rem;
+    color: var(--sidebar-text);
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+.cadastro-nav-item:hover {
+    background: rgba(255,255,255,0.06);
+}
+.cadastro-nav-item.active {
+    background: var(--accent);
+    color: #fff;
+}
+.cadastro-nav-item.disabled {
+    color: var(--sidebar-muted);
+    cursor: default;
+}
+.cadastro-nav-item.disabled small {
+    display: block;
+    opacity: 0.8;
+}
+
+/* --- Landing "Cadastros" --- */
+.cadastros-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 1rem;
+}
+.cadastro-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    text-decoration: none;
+    color: inherit;
+    display: block;
+}
+.cadastro-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.cadastro-card.disabled {
+    opacity: 0.6;
+}
+
 /* --- Mini-calendário (sidebar e view Ano) --- */
 .mini-calendario-card {
     color: inherit;

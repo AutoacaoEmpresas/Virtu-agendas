@@ -13,19 +13,25 @@
 </head>
 <body>
 <div class="app-shell">
-    <aside class="app-sidebar">
+    <aside class="app-sidebar" id="appSidebar">
         <div class="sidebar-icons">
-            <button type="button" class="icon-btn" disabled title="Somente ilustrativo">&#9776;</button>
+            <button type="button" class="icon-btn" id="btn-toggle-sidebar" title="Recolher/expandir menu">&#9776;</button>
             {% if request.user.cargo != "concierge" %}
             <button type="button" class="icon-btn icon-btn-accent abrir-cadastro" data-agenda-id="" title="Nova agenda">+</button>
-            {% endif %}
-            {% if request.user.cargo == "administrador" or request.user.cargo == "agendamento" %}
-            <a class="icon-btn" href="{% url 'agendas:medicos_lista' %}" title="Médicos">&#9878;</a>
             {% endif %}
             <button type="button" class="icon-btn" disabled title="Exportar relatório (ilustrativo)">&#8681;</button>
             <button type="button" class="icon-btn" disabled title="Configurações (ilustrativo)">&#9881;</button>
         </div>
 
+        {% if request.user.cargo == "administrador" %}
+        <div class="sidebar-tabs">
+            <a href="{% url 'agendas:home' %}" class="sidebar-tab {% if not em_area_cadastros %}active{% endif %}">Agenda</a>
+            <a href="{% url 'agendas:cadastros_home' %}" class="sidebar-tab {% if em_area_cadastros %}active{% endif %}">Cadastros</a>
+        </div>
+        {% endif %}
+
+        <div class="sidebar-conteudo">
+        {% block sidebar_conteudo %}
         {% include "agendas/partials/_mini_calendario.html" with mes_ref=mes_ref semanas_mes=semanas_mes cores_por_dia=cores_por_dia hoje=hoje %}
 
         <div class="sidebar-abertas">
@@ -56,6 +62,8 @@
                 <div class="text-muted small px-2">Nenhuma agenda em aberto este mês.</div>
                 {% endfor %}
             </div>
+        </div>
+        {% endblock %}
         </div>
 
         <div class="sidebar-user">

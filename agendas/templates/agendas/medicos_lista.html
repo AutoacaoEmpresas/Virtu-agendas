@@ -1,5 +1,9 @@
 {% extends "agendas/base.html" %}
 
+{% block sidebar_conteudo %}
+{% include "agendas/partials/_sidebar_cadastros.html" %}
+{% endblock %}
+
 {% block topbar %}
 <div class="d-flex justify-content-between align-items-center w-100">
     <h4 class="mb-0">Médicos</h4>

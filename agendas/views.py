@@ -591,30 +591,31 @@ def excluir_agenda(request, agenda_id):
     return redirect("agendas:home")
 
 
-@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+@cargo_required(Cargo.ADMINISTRADOR)
+def cadastros_home(request):
+    context = {
+        "em_area_cadastros": True,
+        "cadastro_ativo": None,
+        "total_medicos": Medico.objects.count(),
+        "total_concierges": Usuario.objects.filter(cargo=Cargo.CONCIERGE).count(),
+    }
+    return render(request, "agendas/cadastros_home.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
 def medicos_lista(request):
-    unidades_ids = request.user.unidades_ids()
-    medicos_qs = Medico.objects.select_related("conta_bancaria").prefetch_related("unidades").all()
-    if unidades_ids is not None:
-        medicos_qs = medicos_qs.filter(unidades__id__in=unidades_ids).distinct()
-    return render(request, "agendas/medicos_lista.html", {"medicos": medicos_qs.order_by("nome")})
+    medicos_qs = Medico.objects.select_related("conta_bancaria").prefetch_related("unidades").order_by("nome")
+    context = {"medicos": medicos_qs, "em_area_cadastros": True, "cadastro_ativo": "medicos"}
+    return render(request, "agendas/medicos_lista.html", context)
 
 
-@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+@cargo_required(Cargo.ADMINISTRADOR)
 def medico_form(request, medico_id=None):
-    unidades_ids = request.user.unidades_ids()
-
-    medico = None
-    if medico_id:
-        medico = get_object_or_404(Medico.objects.prefetch_related("unidades"), pk=medico_id)
-        if unidades_ids is not None and not medico.unidades.filter(id__in=unidades_ids).exists():
-            raise PermissionDenied
+    medico = get_object_or_404(Medico.objects.prefetch_related("unidades"), pk=medico_id) if medico_id else None
 
     if request.method == "POST":
         post = request.POST
         unidades_marcadas = {int(v) for v in post.getlist("unidades") if v}
-        if unidades_ids is not None:
-            unidades_marcadas &= unidades_ids
 
         if medico is None:
             medico = Medico()
@@ -624,38 +625,95 @@ def medico_form(request, medico_id=None):
         medico.especialidade = post.get("especialidade", "").strip()
         medico.conta_bancaria_id = post.get("conta_bancaria") or None
         medico.save()
-
-        if unidades_ids is None:
-            medico.unidades.set(unidades_marcadas)
-        else:
-            # Agendamento só pode alterar o vínculo com as unidades que ele enxerga;
-            # vínculos com outras unidades do médico permanecem intocados.
-            fora_do_escopo = set(medico.unidades.exclude(id__in=unidades_ids).values_list("id", flat=True))
-            medico.unidades.set(unidades_marcadas | fora_do_escopo)
+        medico.unidades.set(unidades_marcadas)
 
         return redirect("agendas:medicos_lista")
 
-    unidades_qs = Unidade.objects.all()
-    if unidades_ids is not None:
-        unidades_qs = unidades_qs.filter(id__in=unidades_ids)
     unidades_do_medico = set(medico.unidades.values_list("id", flat=True)) if medico else set()
-
     context = {
         "medico": medico,
-        "unidades": unidades_qs,
+        "unidades": Unidade.objects.all(),
         "unidades_do_medico": unidades_do_medico,
         "contas_bancarias": ContaBancaria.objects.all(),
     }
     return render(request, "agendas/partials/_medico_form.html", context)
 
 
-@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+@cargo_required(Cargo.ADMINISTRADOR)
 def medico_excluir(request, medico_id):
-    unidades_ids = request.user.unidades_ids()
     medico = get_object_or_404(Medico, pk=medico_id)
-    if unidades_ids is not None and not medico.unidades.filter(id__in=unidades_ids).exists():
-        raise PermissionDenied
-
     if request.method == "POST":
         medico.delete()
     return redirect("agendas:medicos_lista")
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def concierges_lista(request):
+    concierges_qs = Usuario.objects.filter(cargo=Cargo.CONCIERGE).prefetch_related("unidades_permitidas").order_by(
+        "username"
+    )
+    context = {"concierges": concierges_qs, "em_area_cadastros": True, "cadastro_ativo": "concierges"}
+    return render(request, "agendas/concierges_lista.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def concierge_form(request, usuario_id=None):
+    concierge = (
+        get_object_or_404(Usuario, pk=usuario_id, cargo=Cargo.CONCIERGE)
+        if usuario_id
+        else None
+    )
+
+    if request.method == "POST":
+        post = request.POST
+        username = post.get("username", "").strip()
+        senha = post.get("senha", "")
+        unidades_marcadas = {int(v) for v in post.getlist("unidades") if v}
+
+        if not username or (not concierge and not senha):
+            context = {
+                "concierge": concierge,
+                "unidades": Unidade.objects.all(),
+                "unidades_do_concierge": unidades_marcadas,
+                "erro": "Usuário e senha são obrigatórios.",
+            }
+            return render(request, "agendas/partials/_concierge_form.html", context)
+
+        if Usuario.objects.filter(username=username).exclude(pk=concierge.pk if concierge else None).exists():
+            context = {
+                "concierge": concierge,
+                "unidades": Unidade.objects.all(),
+                "unidades_do_concierge": unidades_marcadas,
+                "erro": "Já existe um usuário com esse nome.",
+            }
+            return render(request, "agendas/partials/_concierge_form.html", context)
+
+        if concierge is None:
+            concierge = Usuario(cargo=Cargo.CONCIERGE)
+        concierge.username = username
+        concierge.email = post.get("email", "").strip()
+        concierge.is_active = post.get("ativo") == "on"
+        if senha:
+            concierge.set_password(senha)
+        concierge.save()
+        concierge.unidades_permitidas.set(unidades_marcadas)
+
+        return redirect("agendas:concierges_lista")
+
+    unidades_do_concierge = (
+        set(concierge.unidades_permitidas.values_list("id", flat=True)) if concierge else set()
+    )
+    context = {
+        "concierge": concierge,
+        "unidades": Unidade.objects.all(),
+        "unidades_do_concierge": unidades_do_concierge,
+    }
+    return render(request, "agendas/partials/_concierge_form.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def concierge_excluir(request, usuario_id):
+    concierge = get_object_or_404(Usuario, pk=usuario_id, cargo=Cargo.CONCIERGE)
+    if request.method == "POST":
+        concierge.delete()
+    return redirect("agendas:concierges_lista")

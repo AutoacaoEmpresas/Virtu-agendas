@@ -1,0 +1,30 @@
+{% extends "agendas/base.html" %}
+
+{% block sidebar_conteudo %}
+{% include "agendas/partials/_sidebar_cadastros.html" %}
+{% endblock %}
+
+{% block topbar %}
+<h4 class="mb-0">Cadastros</h4>
+{% endblock %}
+
+{% block content %}
+<div class="cadastros-grid">
+    <a href="{% url 'agendas:medicos_lista' %}" class="cadastro-card">
+        <h5>Médicos</h5>
+        <p class="text-muted small mb-0">{{ total_medicos }} cadastrado{{ total_medicos|pluralize }}</p>
+    </a>
+    <div class="cadastro-card disabled">
+        <h5>Procedimentos</h5>
+        <p class="text-muted small mb-0">Em breve</p>
+    </div>
+    <div class="cadastro-card disabled">
+        <h5>Unidades e Salas</h5>
+        <p class="text-muted small mb-0">Em breve</p>
+    </div>
+    <a href="{% url 'agendas:concierges_lista' %}" class="cadastro-card">
+        <h5>Concierges</h5>
+        <p class="text-muted small mb-0">{{ total_concierges }} cadastrado{{ total_concierges|pluralize }}</p>
+    </a>
+</div>
+{% endblock %}

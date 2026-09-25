@@ -10,8 +10,13 @@ urlpatterns = [
     path("agenda/nova/", views.cadastro_agenda, name="cadastro_agenda_nova"),
     path("agenda/<int:agenda_id>/editar/", views.cadastro_agenda, name="cadastro_agenda_editar"),
     path("agenda/<int:agenda_id>/excluir/", views.excluir_agenda, name="agenda_excluir"),
+    path("cadastros/", views.cadastros_home, name="cadastros_home"),
     path("medicos/", views.medicos_lista, name="medicos_lista"),
     path("medicos/novo/", views.medico_form, name="medico_novo"),
     path("medicos/<int:medico_id>/editar/", views.medico_form, name="medico_editar"),
     path("medicos/<int:medico_id>/excluir/", views.medico_excluir, name="medico_excluir"),
+    path("cadastros/concierges/", views.concierges_lista, name="concierges_lista"),
+    path("cadastros/concierges/novo/", views.concierge_form, name="concierge_novo"),
+    path("cadastros/concierges/<int:usuario_id>/editar/", views.concierge_form, name="concierge_editar"),
+    path("cadastros/concierges/<int:usuario_id>/excluir/", views.concierge_excluir, name="concierge_excluir"),
 ]

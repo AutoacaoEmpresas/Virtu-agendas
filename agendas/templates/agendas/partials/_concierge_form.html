@@ -1,0 +1,51 @@
+<form method="post" action="{% if concierge %}{% url 'agendas:concierge_editar' concierge.id %}{% else %}{% url 'agendas:concierge_novo' %}{% endif %}">
+{% csrf_token %}
+<div class="modal-header">
+    <h5 class="modal-title">{% if concierge %}Editar Concierge{% else %}Novo Concierge{% endif %}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<div class="modal-body">
+    {% if erro %}
+    <div class="alert alert-danger py-2 small">{{ erro }}</div>
+    {% endif %}
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Usuário</label>
+            <input type="text" class="form-control" name="username" value="{{ concierge.username|default:'' }}" required>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-control" name="email" value="{{ concierge.email|default:'' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Senha {% if concierge %}<span class="text-muted small">(deixe em branco para manter)</span>{% endif %}</label>
+            <input type="password" class="form-control" name="senha" {% if not concierge %}required{% endif %}>
+        </div>
+        <div class="col-md-6 d-flex align-items-end">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="ativo" id="concierge_ativo"
+                    {% if not concierge or concierge.is_active %}checked{% endif %}>
+                <label class="form-check-label" for="concierge_ativo">Ativo</label>
+            </div>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Unidades permitidas</label>
+            <div class="d-flex flex-wrap gap-3">
+                {% for u in unidades %}
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="unidades" value="{{ u.id }}" id="unidade_concierge_{{ u.id }}"
+                        {% if u.id in unidades_do_concierge %}checked{% endif %}>
+                    <label class="form-check-label" for="unidade_concierge_{{ u.id }}">{{ u.nome }}</label>
+                </div>
+                {% empty %}
+                <span class="text-muted small">Nenhuma unidade disponível.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary">Salvar</button>
+</div>
+</form>

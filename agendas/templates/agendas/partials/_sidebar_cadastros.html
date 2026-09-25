@@ -1,0 +1,11 @@
+<div class="sidebar-cadastros-nav">
+    <h6 class="sidebar-title">Cadastros</h6>
+    <a href="{% url 'agendas:medicos_lista' %}" class="cadastro-nav-item {% if cadastro_ativo == 'medicos' %}active{% endif %}">
+        Médicos
+    </a>
+    <span class="cadastro-nav-item disabled">Procedimentos <small>(em breve)</small></span>
+    <span class="cadastro-nav-item disabled">Unidades e Salas <small>(em breve)</small></span>
+    <a href="{% url 'agendas:concierges_lista' %}" class="cadastro-nav-item {% if cadastro_ativo == 'concierges' %}active{% endif %}">
+        Concierges
+    </a>
+</div>
