@@ -1,0 +1,28 @@
+{% extends "contas/base_auth.html" %}
+
+{% block title %}Entrar - Virtù{% endblock %}
+
+{% block auth_content %}
+<p class="text-muted small mb-3">Entre com seu usuário e senha.</p>
+
+{% for message in messages %}
+<div class="alert alert-warning py-2 small">{{ message }}</div>
+{% endfor %}
+
+{% if erro %}
+<div class="alert alert-danger py-2 small">{{ erro }}</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Usuário</label>
+        <input type="text" name="username" class="form-control" autofocus required>
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Senha</label>
+        <input type="password" name="password" class="form-control" required>
+    </div>
+    <button type="submit" class="btn btn-primary w-100">Entrar</button>
+</form>
+{% endblock %}

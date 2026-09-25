@@ -4,6 +4,7 @@ import random
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from contas.models import Usuario
 from agendas.models import (
     Agenda,
     ContaBancaria,
@@ -57,6 +58,8 @@ PROCEDIMENTOS = [
 
 CONCIERGES = ["Beatriz Souza", "João Pedro Alves", "Camila Ferreira", ""]
 
+SENHA_DEMO = "Virtu@123"
+
 
 class Command(BaseCommand):
     help = "Popula o banco com dados fictícios para o protótipo Virtù."
@@ -87,6 +90,8 @@ class Command(BaseCommand):
 
         unidades = [Unidade.objects.create(nome=nome) for nome in UNIDADES]
         self.stdout.write(f"Criadas {len(unidades)} unidades.")
+
+        self._seed_usuarios_demo(unidades)
 
         salas = []
         for unidade in unidades:
@@ -187,3 +192,43 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.SUCCESS(f"Criadas {total_agendas} agendas ao longo de 2 semanas."))
         self.stdout.write(self.style.SUCCESS("Seed concluído com sucesso."))
+
+    def _seed_usuarios_demo(self, unidades):
+        """Cria (se não existirem) usuários de demonstração para os 3 cargos."""
+        admin, criado = Usuario.objects.get_or_create(
+            username="admin",
+            defaults={"email": "admin@virtuclinicas.com.br", "cargo": Usuario.Cargo.ADMINISTRADOR},
+        )
+        if criado:
+            admin.set_password(SENHA_DEMO)
+            admin.save()
+
+        agendamento1, criado = Usuario.objects.get_or_create(
+            username="agendamento1",
+            defaults={"email": "agendamento1@virtuclinicas.com.br", "cargo": Usuario.Cargo.AGENDAMENTO},
+        )
+        if criado:
+            agendamento1.set_password(SENHA_DEMO)
+            agendamento1.save()
+        agendamento1.unidades_permitidas.set(unidades[:1])
+
+        if len(unidades) > 1:
+            agendamento2, criado = Usuario.objects.get_or_create(
+                username="agendamento2",
+                defaults={"email": "agendamento2@virtuclinicas.com.br", "cargo": Usuario.Cargo.AGENDAMENTO},
+            )
+            if criado:
+                agendamento2.set_password(SENHA_DEMO)
+                agendamento2.save()
+            agendamento2.unidades_permitidas.set(unidades[1:])
+
+        concierge1, criado = Usuario.objects.get_or_create(
+            username="concierge1",
+            defaults={"email": "concierge1@virtuclinicas.com.br", "cargo": Usuario.Cargo.CONCIERGE},
+        )
+        if criado:
+            concierge1.set_password(SENHA_DEMO)
+            concierge1.save()
+        concierge1.unidades_permitidas.set(unidades[:1])
+
+        self.stdout.write(self.style.SUCCESS("Usuários de demonstração prontos (admin, agendamento1/2, concierge1)."))

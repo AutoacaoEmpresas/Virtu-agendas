@@ -2,12 +2,18 @@ import calendar
 import datetime
 from collections import defaultdict
 
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
+from contas.decorators import cargo_required
+from contas.models import Usuario
+
 from .models import (
     Agenda,
+    ContaBancaria,
     Horario,
     Medico,
     Procedimento,
@@ -16,6 +22,8 @@ from .models import (
     SalaHorario,
     Unidade,
 )
+
+Cargo = Usuario.Cargo
 
 DIAS_SEMANA = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
 DIAS_SEMANA_ABREV = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"]
@@ -77,12 +85,22 @@ def _datas_recorrentes(data_inicial, data_final, dia_semana, intervalo_semanas):
     return datas
 
 
-def _agendas_no_intervalo(inicio, fim, unidade_filtro, busca):
+def _agenda_permitida(agenda, unidades_ids):
+    """True se a agenda pode ser vista/editada pelo usuário (unidades_ids=None => sem restrição)."""
+    if unidades_ids is None:
+        return True
+    sala = agenda.sala
+    return sala is not None and sala.unidade_id in unidades_ids
+
+
+def _agendas_no_intervalo(inicio, fim, unidade_filtro, busca, unidades_ids=None):
     agendas_qs = (
         Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido")
         .prefetch_related("horario__salas__unidade")
         .filter(horario__data__range=[inicio, fim])
     )
+    if unidades_ids is not None:
+        agendas_qs = agendas_qs.filter(horario__salas__unidade_id__in=unidades_ids)
     if unidade_filtro:
         agendas_qs = agendas_qs.filter(horario__salas__unidade_id=unidade_filtro)
     if busca:
@@ -122,14 +140,16 @@ def _montar_dia(dia, agendas_qs, nome=None):
     return resultado
 
 
-def _cores_por_dia(data_inicio, data_fim):
+def _cores_por_dia(data_inicio, data_fim, unidades_ids=None):
     cores = defaultdict(list)
     agendas = (
         Agenda.objects.select_related("horario")
         .prefetch_related("horario__salas__unidade")
         .filter(horario__data__range=[data_inicio, data_fim])
-        .order_by("horario__data", "horario__horario_inicio")
     )
+    if unidades_ids is not None:
+        agendas = agendas.filter(horario__salas__unidade_id__in=unidades_ids)
+    agendas = agendas.distinct().order_by("horario__data", "horario__horario_inicio")
     for ag in agendas:
         sala = ag.sala
         cor = _cor_unidade(sala.unidade_id if sala else None)
@@ -139,21 +159,24 @@ def _cores_por_dia(data_inicio, data_fim):
     return cores
 
 
-def _construir_mini_mes(ano, mes):
+def _construir_mini_mes(ano, mes, unidades_ids=None):
     mes_ref = datetime.date(ano, mes, 1)
     cal = calendar.Calendar(firstweekday=0)
     semanas_mes = cal.monthdatescalendar(ano, mes)
-    cores_por_dia = _cores_por_dia(semanas_mes[0][0], semanas_mes[-1][-1])
+    cores_por_dia = _cores_por_dia(semanas_mes[0][0], semanas_mes[-1][-1], unidades_ids)
     return {"mes_ref": mes_ref, "semanas_mes": semanas_mes, "cores_por_dia": cores_por_dia}
 
 
-def _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes):
+def _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes, unidades_ids=None):
     abertas_qs = (
         Agenda.objects.select_related("horario")
         .prefetch_related("horario__salas__unidade")
         .filter(medico_inicial__isnull=True, horario__data__range=[primeiro_dia_mes, ultimo_dia_mes])
-        .order_by("horario__data", "horario__horario_inicio")
     )
+    if unidades_ids is not None:
+        abertas_qs = abertas_qs.filter(horario__salas__unidade_id__in=unidades_ids)
+    abertas_qs = abertas_qs.distinct().order_by("horario__data", "horario__horario_inicio")
+
     agrupado = defaultdict(list)
     for ag in abertas_qs:
         sala = ag.sala
@@ -184,8 +207,8 @@ def _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes):
     return grupos
 
 
-def _contexto_dia(data_ref, unidade_filtro, busca):
-    agendas_qs = _agendas_no_intervalo(data_ref, data_ref, unidade_filtro, busca)
+def _contexto_dia(data_ref, unidade_filtro, busca, unidades_ids=None):
+    agendas_qs = _agendas_no_intervalo(data_ref, data_ref, unidade_filtro, busca, unidades_ids)
     dia_atual = _montar_dia(data_ref, agendas_qs, nome=DIAS_SEMANA[data_ref.weekday()])
     return {
         "dia_atual": dia_atual,
@@ -194,10 +217,10 @@ def _contexto_dia(data_ref, unidade_filtro, busca):
     }
 
 
-def _contexto_semana(data_ref, unidade_filtro, busca):
+def _contexto_semana(data_ref, unidade_filtro, busca, unidades_ids=None):
     inicio_semana = _monday(data_ref)
     fim_semana = inicio_semana + datetime.timedelta(days=6)
-    agendas_qs = _agendas_no_intervalo(inicio_semana, fim_semana, unidade_filtro, busca)
+    agendas_qs = _agendas_no_intervalo(inicio_semana, fim_semana, unidade_filtro, busca, unidades_ids)
     dias_semana = [
         _montar_dia(inicio_semana + datetime.timedelta(days=i), agendas_qs, nome=DIAS_SEMANA[i])
         for i in range(7)
@@ -211,11 +234,13 @@ def _contexto_semana(data_ref, unidade_filtro, busca):
     }
 
 
-def _contexto_mes(data_ref, unidade_filtro, busca):
+def _contexto_mes(data_ref, unidade_filtro, busca, unidades_ids=None):
     mes_ref = data_ref.replace(day=1)
     cal = calendar.Calendar(firstweekday=0)
     semanas_mes = cal.monthdatescalendar(mes_ref.year, mes_ref.month)
-    agendas_qs = _agendas_no_intervalo(semanas_mes[0][0], semanas_mes[-1][-1], unidade_filtro, busca)
+    agendas_qs = _agendas_no_intervalo(
+        semanas_mes[0][0], semanas_mes[-1][-1], unidade_filtro, busca, unidades_ids
+    )
 
     grid = []
     for semana in semanas_mes:
@@ -241,11 +266,11 @@ def _contexto_mes(data_ref, unidade_filtro, busca):
     }
 
 
-def _contexto_ano(data_ref, unidade_filtro, busca):
+def _contexto_ano(data_ref, unidade_filtro, busca, unidades_ids=None):
     ano_ref = data_ref.year
     meses_ano = []
     for mes in range(1, 13):
-        info = _construir_mini_mes(ano_ref, mes)
+        info = _construir_mini_mes(ano_ref, mes, unidades_ids)
         info["link"] = f"?view=mes&data={info['mes_ref'].isoformat()}&q={busca}&unidade={unidade_filtro}"
         meses_ano.append(info)
     return {
@@ -256,6 +281,7 @@ def _contexto_ano(data_ref, unidade_filtro, busca):
     }
 
 
+@login_required
 def home(request):
     hoje = datetime.date.today()
     view = request.GET.get("view", "semana")
@@ -268,27 +294,34 @@ def home(request):
     busca = request.GET.get("q", "").strip()
     unidade_filtro = request.GET.get("unidade", "").strip()
 
+    unidades_ids = request.user.unidades_ids()
+    unidades_qs = Unidade.objects.all()
+    if unidades_ids is not None:
+        unidades_qs = unidades_qs.filter(id__in=unidades_ids)
+        if not unidade_filtro.isdigit() or int(unidade_filtro) not in unidades_ids:
+            unidade_filtro = ""
+
     construtores = {
         "dia": _contexto_dia,
         "semana": _contexto_semana,
         "mes": _contexto_mes,
         "ano": _contexto_ano,
     }
-    contexto_view = construtores[view](data_ref, unidade_filtro, busca)
+    contexto_view = construtores[view](data_ref, unidade_filtro, busca, unidades_ids)
 
     mes_mini_ref = contexto_view.get("inicio_semana", data_ref)
-    mini_mes = _construir_mini_mes(mes_mini_ref.year, mes_mini_ref.month)
+    mini_mes = _construir_mini_mes(mes_mini_ref.year, mes_mini_ref.month, unidades_ids)
 
     primeiro_dia_mes = mini_mes["mes_ref"]
     ultimo_dia_mes = _ultimo_dia_mes(primeiro_dia_mes)
-    agendas_abertas_grupos = _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes)
+    agendas_abertas_grupos = _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes, unidades_ids)
 
     context = {
         "view": view,
         "views_labels": VIEWS_LABELS,
         "data_ref": data_ref.isoformat(),
         "hoje": hoje,
-        "unidades": Unidade.objects.all(),
+        "unidades": unidades_qs,
         "busca": busca,
         "unidade_filtro": unidade_filtro,
         "mes_ref": mini_mes["mes_ref"],
@@ -300,16 +333,20 @@ def home(request):
     return render(request, "agendas/home.html", context)
 
 
+@login_required
 def lista_agendamentos(request, data):
     dia = _parse_date(data, datetime.date.today())
     busca = request.GET.get("q", "").strip()
     ordenar = request.GET.get("ordenar", "recentes")
+    unidades_ids = request.user.unidades_ids()
 
     agendas_qs = (
         Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido")
         .prefetch_related("horario__salas__unidade", "procedimentoagenda_set__procedimento")
         .filter(horario__data=dia)
     )
+    if unidades_ids is not None:
+        agendas_qs = agendas_qs.filter(horario__salas__unidade_id__in=unidades_ids)
 
     if busca:
         agendas_qs = agendas_qs.filter(
@@ -347,7 +384,15 @@ def lista_agendamentos(request, data):
     return render(request, "agendas/partials/_lista_agendamentos.html", context)
 
 
+@login_required
 def cadastro_agenda(request, agenda_id=None):
+    if request.user.cargo == Cargo.CONCIERGE:
+        if not agenda_id:
+            raise PermissionDenied
+        return _editar_pacientes_reais(request, agenda_id)
+
+    unidades_ids = request.user.unidades_ids()
+
     agenda = None
     if agenda_id:
         agenda = get_object_or_404(
@@ -356,9 +401,11 @@ def cadastro_agenda(request, agenda_id=None):
             ),
             pk=agenda_id,
         )
+        if not _agenda_permitida(agenda, unidades_ids):
+            raise PermissionDenied
 
     if request.method == "POST":
-        return _salvar_agenda(request, agenda)
+        return _salvar_agenda(request, agenda, unidades_ids)
 
     horario_pref_id = request.GET.get("horario")
     unidade_pref_id = request.GET.get("unidade")
@@ -388,12 +435,22 @@ def cadastro_agenda(request, agenda_id=None):
     if agenda:
         procedimentos_agenda = list(agenda.procedimentoagenda_set.select_related("procedimento"))
 
+    unidades_qs = Unidade.objects.all()
+    salas_qs = Sala.objects.select_related("unidade").all()
+    medicos_qs = Medico.objects.all()
+    procedimentos_qs = Procedimento.objects.select_related("unidade").all()
+    if unidades_ids is not None:
+        unidades_qs = unidades_qs.filter(id__in=unidades_ids)
+        salas_qs = salas_qs.filter(unidade_id__in=unidades_ids)
+        medicos_qs = medicos_qs.filter(unidades__id__in=unidades_ids).distinct()
+        procedimentos_qs = procedimentos_qs.filter(unidade_id__in=unidades_ids)
+
     context = {
         "agenda": agenda,
-        "unidades": Unidade.objects.all(),
-        "salas": Sala.objects.select_related("unidade").all(),
-        "medicos": Medico.objects.all(),
-        "procedimentos": Procedimento.objects.select_related("unidade").all(),
+        "unidades": unidades_qs,
+        "salas": salas_qs,
+        "medicos": medicos_qs,
+        "procedimentos": procedimentos_qs,
         "unidade_pref_id": str(unidade_pref_id) if unidade_pref_id else "",
         "sala_pref": sala_pref,
         "data_pref": data_pref,
@@ -401,16 +458,19 @@ def cadastro_agenda(request, agenda_id=None):
         "horario_fim_pref": horario_fim_pref,
         "procedimentos_agenda": procedimentos_agenda,
         "dias_semana_opcoes": list(enumerate(DIAS_SEMANA_ABREV)),
+        "pode_excluir": agenda is not None,
     }
     return render(request, "agendas/partials/_cadastro_agenda.html", context)
 
 
 @transaction.atomic
-def _salvar_agenda(request, agenda):
+def _salvar_agenda(request, agenda, unidades_ids):
     post = request.POST
 
     sala_id = post.get("sala")
     sala = get_object_or_404(Sala, pk=sala_id) if sala_id else None
+    if sala and unidades_ids is not None and sala.unidade_id not in unidades_ids:
+        raise PermissionDenied
 
     medico_inicial_id = post.get("medico_inicial") or None
     medico_inicial_status = post.get("medico_inicial_status", "cancelado")
@@ -487,3 +547,115 @@ def _salvar_agenda(request, agenda):
         agenda = None  # força criação de nova agenda/horario na próxima iteração (recorrência)
 
     return redirect("agendas:home")
+
+
+def _editar_pacientes_reais(request, agenda_id):
+    unidades_ids = request.user.unidades_ids()
+    agenda = get_object_or_404(
+        Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido").prefetch_related(
+            "horario__salas__unidade", "procedimentoagenda_set__procedimento"
+        ),
+        pk=agenda_id,
+    )
+    if not _agenda_permitida(agenda, unidades_ids):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        pa_ids = request.POST.getlist("procedimento_agenda_id[]")
+        reais = request.POST.getlist("real_pacientes[]")
+        for pa_id, real in zip(pa_ids, reais):
+            ProcedimentoAgenda.objects.filter(pk=pa_id, agenda=agenda).update(real_pacientes=real or None)
+        return redirect("agendas:home")
+
+    procedimentos_agenda = list(agenda.procedimentoagenda_set.select_related("procedimento"))
+    context = {
+        "agenda": agenda,
+        "sala": agenda.sala,
+        "unidade": agenda.unidade,
+        "procedimentos_agenda": procedimentos_agenda,
+    }
+    return render(request, "agendas/partials/_editar_pacientes_reais.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+def excluir_agenda(request, agenda_id):
+    unidades_ids = request.user.unidades_ids()
+    agenda = get_object_or_404(Agenda, pk=agenda_id)
+    if not _agenda_permitida(agenda, unidades_ids):
+        raise PermissionDenied
+
+    if request.method == "POST":
+        horario = agenda.horario
+        agenda.delete()
+        horario.delete()
+    return redirect("agendas:home")
+
+
+@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+def medicos_lista(request):
+    unidades_ids = request.user.unidades_ids()
+    medicos_qs = Medico.objects.select_related("conta_bancaria").prefetch_related("unidades").all()
+    if unidades_ids is not None:
+        medicos_qs = medicos_qs.filter(unidades__id__in=unidades_ids).distinct()
+    return render(request, "agendas/medicos_lista.html", {"medicos": medicos_qs.order_by("nome")})
+
+
+@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+def medico_form(request, medico_id=None):
+    unidades_ids = request.user.unidades_ids()
+
+    medico = None
+    if medico_id:
+        medico = get_object_or_404(Medico.objects.prefetch_related("unidades"), pk=medico_id)
+        if unidades_ids is not None and not medico.unidades.filter(id__in=unidades_ids).exists():
+            raise PermissionDenied
+
+    if request.method == "POST":
+        post = request.POST
+        unidades_marcadas = {int(v) for v in post.getlist("unidades") if v}
+        if unidades_ids is not None:
+            unidades_marcadas &= unidades_ids
+
+        if medico is None:
+            medico = Medico()
+        medico.nome = post.get("nome", "").strip()
+        medico.email = post.get("email", "").strip()
+        medico.telefone = post.get("telefone", "").strip()
+        medico.especialidade = post.get("especialidade", "").strip()
+        medico.conta_bancaria_id = post.get("conta_bancaria") or None
+        medico.save()
+
+        if unidades_ids is None:
+            medico.unidades.set(unidades_marcadas)
+        else:
+            # Agendamento só pode alterar o vínculo com as unidades que ele enxerga;
+            # vínculos com outras unidades do médico permanecem intocados.
+            fora_do_escopo = set(medico.unidades.exclude(id__in=unidades_ids).values_list("id", flat=True))
+            medico.unidades.set(unidades_marcadas | fora_do_escopo)
+
+        return redirect("agendas:medicos_lista")
+
+    unidades_qs = Unidade.objects.all()
+    if unidades_ids is not None:
+        unidades_qs = unidades_qs.filter(id__in=unidades_ids)
+    unidades_do_medico = set(medico.unidades.values_list("id", flat=True)) if medico else set()
+
+    context = {
+        "medico": medico,
+        "unidades": unidades_qs,
+        "unidades_do_medico": unidades_do_medico,
+        "contas_bancarias": ContaBancaria.objects.all(),
+    }
+    return render(request, "agendas/partials/_medico_form.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR, Cargo.AGENDAMENTO)
+def medico_excluir(request, medico_id):
+    unidades_ids = request.user.unidades_ids()
+    medico = get_object_or_404(Medico, pk=medico_id)
+    if unidades_ids is not None and not medico.unidades.filter(id__in=unidades_ids).exists():
+        raise PermissionDenied
+
+    if request.method == "POST":
+        medico.delete()
+    return redirect("agendas:medicos_lista")

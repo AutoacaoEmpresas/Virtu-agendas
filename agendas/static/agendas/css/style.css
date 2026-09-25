@@ -127,6 +127,29 @@ a {
     color: #fff;
     font-weight: 700;
 }
+a.icon-btn {
+    text-decoration: none;
+}
+
+.sidebar-user {
+    border-top: 1px solid var(--sidebar-border);
+    padding-top: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+.sidebar-user-info {
+    margin-bottom: 0.25rem;
+}
+.sidebar-user a,
+.sidebar-user button.btn-link {
+    color: var(--sidebar-text);
+    text-decoration: none;
+}
+.sidebar-user a:hover,
+.sidebar-user button.btn-link:hover {
+    color: var(--accent);
+}
 
 /* --- Mini-calendário (sidebar e view Ano) --- */
 .mini-calendario-card {

@@ -1,0 +1,44 @@
+{% load static %}
+<form method="post">
+{% csrf_token %}
+<div class="modal-header">
+    <h5 class="modal-title">Agenda #{{ agenda.id }} — Pacientes atendidos</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<div class="modal-body">
+    <div class="row g-2 mb-3 small text-muted">
+        <div class="col-md-3"><strong>Data:</strong> {{ agenda.horario.data|date:"d/m/Y" }}</div>
+        <div class="col-md-3"><strong>Horário:</strong> {{ agenda.horario.horario_inicio|time:"H:i" }} - {{ agenda.horario.horario_fim|time:"H:i" }}</div>
+        <div class="col-md-3"><strong>Unidade/Sala:</strong> {{ unidade.nome|default:"-" }} / {{ sala.nome|default:"-" }}</div>
+        <div class="col-md-3"><strong>Médico:</strong> {{ agenda.medico_inicial.nome|default:"Vaga em aberto" }}</div>
+    </div>
+
+    <table class="table table-sm">
+        <thead>
+            <tr>
+                <th>Procedimento</th>
+                <th style="width:150px;">Quant. Prevista</th>
+                <th style="width:150px;">Quant. Real</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for pa in procedimentos_agenda %}
+            <tr>
+                <td>{{ pa.procedimento.nome_procedimento }}</td>
+                <td>{{ pa.esperanca_pacientes }}</td>
+                <td>
+                    <input type="hidden" name="procedimento_agenda_id[]" value="{{ pa.id }}">
+                    <input type="number" min="0" class="form-control form-control-sm" name="real_pacientes[]" value="{{ pa.real_pacientes|default_if_none:'' }}">
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-muted text-center">Nenhum procedimento cadastrado nesta agenda.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary">Salvar</button>
+</div>
+</form>

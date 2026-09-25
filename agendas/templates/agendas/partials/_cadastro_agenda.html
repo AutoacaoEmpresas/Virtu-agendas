@@ -184,9 +184,18 @@
             <label class="btn btn-outline-secondary btn-sm" for="calc_paciente">Por Paciente</label>
         </div>
     </div>
-    <div>
+    <div class="d-flex gap-2">
+        {% if pode_excluir %}
+        <button type="submit" form="form-excluir-agenda" class="btn btn-outline-danger"
+                onclick="return confirm('Excluir esta agenda? Essa ação não pode ser desfeita.');">Excluir</button>
+        {% endif %}
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
         <button type="submit" class="btn btn-primary">Salvar</button>
     </div>
 </div>
 </form>
+{% if pode_excluir %}
+<form id="form-excluir-agenda" method="post" action="{% url 'agendas:agenda_excluir' agenda.id %}">
+    {% csrf_token %}
+</form>
+{% endif %}

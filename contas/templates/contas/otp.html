@@ -1,0 +1,31 @@
+{% extends "contas/base_auth.html" %}
+
+{% block title %}Verificação em duas etapas - Virtù{% endblock %}
+
+{% block auth_content %}
+<p class="text-muted small mb-3">
+    Enviamos um código de verificação para o seu e-mail. Digite-o abaixo para continuar.
+</p>
+
+{% if info %}
+<div class="alert alert-success py-2 small">{{ info }}</div>
+{% endif %}
+
+{% if erro %}
+<div class="alert alert-danger py-2 small">{{ erro }}</div>
+{% endif %}
+
+<form method="post">
+    {% csrf_token %}
+    <div class="mb-3">
+        <label class="form-label">Código de verificação</label>
+        <input type="text" name="codigo" class="form-control" inputmode="numeric" maxlength="6" autofocus required>
+    </div>
+    <button type="submit" class="btn btn-primary w-100 mb-2">Confirmar</button>
+</form>
+<form method="post">
+    {% csrf_token %}
+    <button type="submit" name="reenviar" value="1" class="btn btn-link btn-sm px-0">Reenviar código</button>
+</form>
+<a href="{% url 'contas:login' %}" class="small">&laquo; Voltar para o login</a>
+{% endblock %}

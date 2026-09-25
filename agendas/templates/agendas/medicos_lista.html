@@ -1,0 +1,55 @@
+{% extends "agendas/base.html" %}
+
+{% block topbar %}
+<div class="d-flex justify-content-between align-items-center w-100">
+    <h4 class="mb-0">Médicos</h4>
+    <button type="button" class="btn btn-primary btn-sm abrir-medico" data-medico-id="">+ Novo médico</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<table class="table table-sm table-hover bg-white">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Especialidade</th>
+            <th>E-mail</th>
+            <th>Telefone</th>
+            <th>Unidades</th>
+            <th style="width:140px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for medico in medicos %}
+        <tr>
+            <td>{{ medico.nome }}</td>
+            <td>{{ medico.especialidade }}</td>
+            <td>{{ medico.email|default:"-" }}</td>
+            <td>{{ medico.telefone|default:"-" }}</td>
+            <td>{% for u in medico.unidades.all %}{{ u.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary abrir-medico" data-medico-id="{{ medico.id }}">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-medico" data-medico-id="{{ medico.id }}">Excluir</button>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6" class="text-muted text-center py-4">Nenhum médico cadastrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Modal: Cadastro de Médico -->
+<div class="modal fade" id="modalMedico" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" id="modalMedicoContent">
+            <div class="modal-body text-center p-5 text-muted">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+{% for medico in medicos %}
+<form id="form-excluir-medico-{{ medico.id }}" method="post" action="{% url 'agendas:medico_excluir' medico.id %}">
+    {% csrf_token %}
+</form>
+{% endfor %}
+{% endblock %}

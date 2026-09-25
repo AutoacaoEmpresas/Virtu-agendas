@@ -31,6 +31,14 @@ function loadCadastroAgenda(agendaId, extraParams) {
     });
 }
 
+function loadMedicoForm(medicoId) {
+    const url = medicoId ? `/medicos/${medicoId}/editar/` : "/medicos/novo/";
+    fetch(url).then((r) => r.text()).then((html) => {
+        document.getElementById("modalMedicoContent").innerHTML = html;
+        getModal("modalMedico").show();
+    });
+}
+
 function filtrarPorUnidade(unidadeId) {
     document.querySelectorAll("#id_sala option[data-unidade]").forEach((opt) => {
         opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
@@ -157,6 +165,20 @@ document.addEventListener("click", function (e) {
         if (tbody.querySelectorAll(".linha-procedimento").length > 1) {
             removeBtn.closest(".linha-procedimento").remove();
             recalcularValores();
+        }
+        return;
+    }
+
+    const abrirMedicoBtn = e.target.closest(".abrir-medico");
+    if (abrirMedicoBtn) {
+        loadMedicoForm(abrirMedicoBtn.dataset.medicoId);
+        return;
+    }
+
+    const excluirMedicoBtn = e.target.closest(".btn-excluir-medico");
+    if (excluirMedicoBtn) {
+        if (confirm("Excluir este médico? Essa ação não pode ser desfeita.")) {
+            document.getElementById(`form-excluir-medico-${excluirMedicoBtn.dataset.medicoId}`).submit();
         }
         return;
     }

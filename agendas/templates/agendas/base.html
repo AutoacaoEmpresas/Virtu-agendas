@@ -16,7 +16,12 @@
     <aside class="app-sidebar">
         <div class="sidebar-icons">
             <button type="button" class="icon-btn" disabled title="Somente ilustrativo">&#9776;</button>
+            {% if request.user.cargo != "concierge" %}
             <button type="button" class="icon-btn icon-btn-accent abrir-cadastro" data-agenda-id="" title="Nova agenda">+</button>
+            {% endif %}
+            {% if request.user.cargo == "administrador" or request.user.cargo == "agendamento" %}
+            <a class="icon-btn" href="{% url 'agendas:medicos_lista' %}" title="Médicos">&#9878;</a>
+            {% endif %}
             <button type="button" class="icon-btn" disabled title="Exportar relatório (ilustrativo)">&#8681;</button>
             <button type="button" class="icon-btn" disabled title="Configurações (ilustrativo)">&#9881;</button>
         </div>
@@ -52,10 +57,25 @@
                 {% endfor %}
             </div>
         </div>
+
+        <div class="sidebar-user">
+            <div class="sidebar-user-info">
+                <div class="fw-semibold small">{{ request.user.get_full_name|default:request.user.username }}</div>
+                <div class="text-muted small">{{ request.user.get_cargo_display }}</div>
+            </div>
+            {% if request.user.cargo == "administrador" %}
+            <a href="/admin/" class="small d-block">Django Admin</a>
+            {% endif %}
+            <form method="post" action="{% url 'contas:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-link btn-sm px-0">Sair</button>
+            </form>
+        </div>
     </aside>
 
     <main class="app-main">
         <div class="app-topbar">
+            {% block topbar %}
             <div class="topbar-nav">
                 <a class="btn btn-sm btn-nav" href="?view={{ view }}&data={{ anterior }}&q={{ busca }}&unidade={{ unidade_filtro }}">&laquo;</a>
                 <a class="btn btn-sm btn-nav" href="?view={{ view }}&q={{ busca }}&unidade={{ unidade_filtro }}">Hoje</a>
@@ -80,6 +100,7 @@
                 </select>
                 <input type="search" name="q" value="{{ busca }}" class="form-control form-control-sm topbar-search" placeholder="Procurar médico, sala, unidade...">
             </form>
+            {% endblock %}
         </div>
 
         {% block content %}{% endblock %}

@@ -4,8 +4,9 @@ Protótipo funcional em Django do sistema Virtù: ferramenta de agendamento de
 procedimentos oftalmológicos realizados por médicos em diferentes unidades de
 saúde. Objetivo: validar o modelo de dados e o fluxo das 3 telas principais
 (tela inicial com calendário, lista de agendamentos do dia e cadastro de
-agenda). Não possui autenticação, testes automatizados ou preocupação com
-produção — é apenas para rodar localmente com dados fictícios.
+agenda), além do controle de acesso por cargo. Não possui testes
+automatizados ou preocupação com produção — é apenas para rodar localmente
+com dados fictícios.
 
 ## Como rodar
 
@@ -37,11 +38,47 @@ inspecionar os dados diretamente — crie um superusuário com
 fluxo principal do protótipo).
 
 Para reiniciar os dados fictícios a qualquer momento, rode `python manage.py
-seed_data` novamente (ele apaga e recria tudo).
+seed_data` novamente (ele apaga e recria tudo, exceto os usuários — que são
+recriados só se não existirem).
+
+## Autenticação e cargos
+
+Existem 3 cargos, cada um com um conjunto de permissões:
+
+- **Administrador**: acesso total (agendas, médicos, unidades, salas,
+  procedimentos, usuários) e ao `/admin/` do Django. Login exige uma
+  **verificação em duas etapas por e-mail**: depois da senha, um código de 6
+  dígitos é enviado para o e-mail cadastrado (em desenvolvimento, o backend de
+  e-mail é `console` — o código aparece direto no terminal onde o
+  `runserver` está rodando).
+- **Agendamento**: pode criar, editar e excluir **agendas** e **médicos**,
+  mas só dentro das **unidades liberadas** para aquele usuário (o
+  Administrador escolhe quais, em `/admin/`, no cadastro do usuário — pode
+  ser uma ou várias). Sem OTP no login.
+- **Concierge**: só **vê** agendas (também restrito por unidade) e só pode
+  editar a **quantidade de pacientes reais** de cada procedimento de uma
+  agenda já existente. Sem OTP no login.
+
+`python manage.py seed_data` já cria 4 usuários de demonstração (senha
+`Virtu@123` para todos):
+
+| Usuário | Cargo | Unidades visíveis |
+|---|---|---|
+| `admin` | Administrador | todas |
+| `agendamento1` | Agendamento | 1ª unidade |
+| `agendamento2` | Agendamento | 2ª e 3ª unidades |
+| `concierge1` | Concierge | 1ª unidade |
+
+Para criar um novo Administrador direto pela linha de comando (sem passar
+pelo `/admin/`): `python manage.py createsuperuser` (vai pedir usuário,
+e-mail e senha).
 
 ## Estrutura
 
 - `virtu_config/` — configuração do projeto Django (settings, urls raiz).
+- `contas/` — app de autenticação: model de usuário customizado (`Usuario`,
+  com cargo e unidades permitidas), login com OTP por e-mail para
+  Administrador, logout.
 - `agendas/` — app principal:
   - `models.py` — modelo de dados (Unidade, Sala, ContaBancaria, Medico,
     Procedimento, Horario, Agenda, ProcedimentoAgenda e tabelas associativas).

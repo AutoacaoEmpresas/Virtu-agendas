@@ -1,0 +1,54 @@
+<form method="post" action="{% if medico %}{% url 'agendas:medico_editar' medico.id %}{% else %}{% url 'agendas:medico_novo' %}{% endif %}">
+{% csrf_token %}
+<div class="modal-header">
+    <h5 class="modal-title">{% if medico %}Editar Médico{% else %}Novo Médico{% endif %}</h5>
+    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+</div>
+<div class="modal-body">
+    <div class="row g-3">
+        <div class="col-md-6">
+            <label class="form-label">Nome</label>
+            <input type="text" class="form-control" name="nome" value="{{ medico.nome|default:'' }}" required>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Especialidade</label>
+            <input type="text" class="form-control" name="especialidade" value="{{ medico.especialidade|default:'' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">E-mail</label>
+            <input type="email" class="form-control" name="email" value="{{ medico.email|default:'' }}">
+        </div>
+        <div class="col-md-6">
+            <label class="form-label">Telefone</label>
+            <input type="text" class="form-control" name="telefone" value="{{ medico.telefone|default:'' }}">
+        </div>
+        <div class="col-md-12">
+            <label class="form-label">Conta bancária</label>
+            <select class="form-select" name="conta_bancaria">
+                <option value="">Nenhuma</option>
+                {% for conta in contas_bancarias %}
+                <option value="{{ conta.id }}" {% if medico.conta_bancaria_id == conta.id %}selected{% endif %}>{{ conta.nome_banco }} - {{ conta.numero_conta }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-12">
+            <label class="form-label">Unidades</label>
+            <div class="d-flex flex-wrap gap-3">
+                {% for u in unidades %}
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="unidades" value="{{ u.id }}" id="unidade_medico_{{ u.id }}"
+                        {% if u.id in unidades_do_medico %}checked{% endif %}>
+                    <label class="form-check-label" for="unidade_medico_{{ u.id }}">{{ u.nome }}</label>
+                </div>
+                {% empty %}
+                <span class="text-muted small">Nenhuma unidade disponível.</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+<div class="modal-footer">
+    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+    <button type="submit" class="btn btn-primary">Salvar</button>
+</div>
+</form>
