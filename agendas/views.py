@@ -625,10 +625,29 @@ def excluir_agenda(request, agenda_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        horario = agenda.horario
-        agenda.delete()
-        horario.delete()
+        recorrencia = agenda.recorrencia
+        if recorrencia and request.POST.get("escopo") == "posteriores":
+            # Excluir o Horario remove em cascata a Agenda, a SalaHorario e os ProcedimentoAgenda.
+            Horario.objects.filter(agenda__recorrencia=recorrencia, data__gte=agenda.horario.data).delete()
+        else:
+            horario = agenda.horario
+            agenda.delete()
+            horario.delete()
+        if recorrencia:
+            _ajustar_fim_recorrencia(recorrencia)
     return redirect("agendas:home")
+
+
+def _ajustar_fim_recorrencia(recorrencia):
+    """Após exclusões, faz a data final acompanhar a última agenda restante (ou remove a série vazia)."""
+    ultima_data = (
+        Horario.objects.filter(agenda__recorrencia=recorrencia).order_by("-data").values_list("data", flat=True).first()
+    )
+    if ultima_data is None:
+        recorrencia.delete()
+    elif ultima_data != recorrencia.data_final:
+        recorrencia.data_final = ultima_data
+        recorrencia.save(update_fields=["data_final"])
 
 
 @cargo_required(Cargo.ADMINISTRADOR)

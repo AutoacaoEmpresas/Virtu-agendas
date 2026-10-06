@@ -201,7 +201,21 @@
         </div>
     </div>
     <div class="d-flex gap-2">
-        {% if pode_excluir %}
+        {% if pode_excluir and recorrencia %}
+        <div class="btn-group dropup">
+            <button type="button" class="btn btn-outline-danger dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Excluir</button>
+            <ul class="dropdown-menu">
+                <li>
+                    <button type="submit" form="form-excluir-agenda" name="escopo" value="esta" class="dropdown-item"
+                            onclick="return confirm('Excluir apenas esta agenda? Essa ação não pode ser desfeita.');">Apenas esta agenda</button>
+                </li>
+                <li>
+                    <button type="submit" form="form-excluir-agenda" name="escopo" value="posteriores" class="dropdown-item text-danger"
+                            onclick="return confirm('Excluir esta agenda e todas as posteriores desta recorrência? Essa ação não pode ser desfeita.');">Esta e todas as posteriores</button>
+                </li>
+            </ul>
+        </div>
+        {% elif pode_excluir %}
         <button type="submit" form="form-excluir-agenda" class="btn btn-outline-danger"
                 onclick="return confirm('Excluir esta agenda? Essa ação não pode ser desfeita.');">Excluir</button>
         {% endif %}
