@@ -1,0 +1,105 @@
+{% extends "agendas/base.html" %}
+
+{% block title %}Histórico · Virtù{% endblock %}
+
+{% block sidebar_conteudo %}
+<div class="px-2 small text-muted">
+    <h6 class="sidebar-title">Histórico</h6>
+    Cada linha é uma ação salva numa agenda: cadastro, modificação ou exclusão, com quem fez e o que mudou.
+</div>
+{% endblock %}
+
+{% block topbar %}
+<div class="d-flex justify-content-between align-items-center w-100 gap-3 flex-wrap">
+    <h4 class="mb-0">Histórico de agendas</h4>
+    <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
+        <select name="acao" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Todas as ações</option>
+            {% for valor, rotulo in acoes %}
+            <option value="{{ valor }}" {% if acao == valor %}selected{% endif %}>{{ rotulo }}</option>
+            {% endfor %}
+        </select>
+        <select name="usuario" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Todos os usuários</option>
+            {% for u in usuarios %}
+            <option value="{{ u.id }}" {% if usuario_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.get_full_name|default:u.username }}</option>
+            {% endfor %}
+        </select>
+        <select name="unidade" class="form-select form-select-sm" onchange="this.form.submit()">
+            <option value="">Todas as unidades</option>
+            {% for u in unidades %}
+            <option value="{{ u.id }}" {% if unidade_id == u.id|stringformat:"s" %}selected{% endif %}>{{ u.nome }}</option>
+            {% endfor %}
+        </select>
+        <input type="search" name="q" value="{{ busca }}" class="form-control form-control-sm" placeholder="Nº da agenda, usuário, sala...">
+    </form>
+</div>
+{% endblock %}
+
+{% block content %}
+<table class="table table-sm bg-white historico-tabela align-middle">
+    <thead>
+        <tr>
+            <th style="width:140px;">Quando</th>
+            <th style="width:170px;">Quem</th>
+            <th style="width:120px;">Ação</th>
+            <th>Agenda</th>
+            <th>O que mudou</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for log in pagina %}
+        <tr>
+            <td class="small">{{ log.criado_em|date:"d/m/Y H:i" }}</td>
+            <td>
+                <div class="fw-semibold small">{{ log.usuario_nome }}</div>
+                <div class="text-muted small">{{ log.usuario_cargo }}</div>
+            </td>
+            <td>
+                <span class="badge {% if log.acao == 'cadastro' %}bg-success{% elif log.acao == 'exclusao' %}bg-danger{% else %}bg-primary{% endif %}">
+                    {{ log.get_acao_display }}
+                </span>
+            </td>
+            <td class="small">
+                <div class="fw-semibold">#{{ log.agenda_numero }}</div>
+                <div class="text-muted">{{ log.resumo }}</div>
+            </td>
+            <td class="small">
+                <ul class="historico-alteracoes">
+                    {% for alt in log.alteracoes %}
+                    <li>
+                        <span class="text-muted">{{ alt.campo }}:</span>
+                        {% if log.acao == "cadastro" %}
+                            {{ alt.depois }}
+                        {% elif alt.antes and alt.depois %}
+                            <del class="text-danger">{{ alt.antes }}</del> &rarr; <span class="text-success">{{ alt.depois }}</span>
+                        {% elif alt.antes %}
+                            <del class="text-danger">{{ alt.antes }}</del>
+                        {% else %}
+                            <span class="text-success">{{ alt.depois }}</span>
+                        {% endif %}
+                    </li>
+                    {% endfor %}
+                </ul>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="text-muted text-center py-4">Nenhum registro encontrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pagina.has_other_pages %}
+<nav class="d-flex justify-content-between align-items-center">
+    <span class="text-muted small">Página {{ pagina.number }} de {{ pagina.paginator.num_pages }} · {{ pagina.paginator.count }} registros</span>
+    <div class="btn-group">
+        {% if pagina.has_previous %}
+        <a class="btn btn-sm btn-outline-secondary" href="?{{ filtros_query }}&pagina={{ pagina.previous_page_number }}">&laquo; Anterior</a>
+        {% endif %}
+        {% if pagina.has_next %}
+        <a class="btn btn-sm btn-outline-secondary" href="?{{ filtros_query }}&pagina={{ pagina.next_page_number }}">Próxima &raquo;</a>
+        {% endif %}
+    </div>
+</nav>
+{% endif %}
+{% endblock %}

@@ -25,8 +25,9 @@
 
         {% if request.user.cargo == "administrador" %}
         <div class="sidebar-tabs">
-            <a href="{% url 'agendas:home' %}" class="sidebar-tab {% if not em_area_cadastros %}active{% endif %}">Agenda</a>
+            <a href="{% url 'agendas:home' %}" class="sidebar-tab {% if not em_area_cadastros and not em_area_historico %}active{% endif %}">Agenda</a>
             <a href="{% url 'agendas:cadastros_home' %}" class="sidebar-tab {% if em_area_cadastros %}active{% endif %}">Cadastros</a>
+            <a href="{% url 'agendas:historico' %}" class="sidebar-tab {% if em_area_historico %}active{% endif %}">Histórico</a>
         </div>
         {% endif %}
 

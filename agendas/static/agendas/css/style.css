@@ -538,3 +538,16 @@ a.icon-btn {
     border-radius: 0.75rem;
     padding: 0.75rem;
 }
+
+/* ==================== Histórico de agendas ==================== */
+.historico-tabela td {
+    vertical-align: top;
+}
+.historico-alteracoes {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.historico-alteracoes li + li {
+    margin-top: 0.15rem;
+}

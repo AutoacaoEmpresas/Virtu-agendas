@@ -5,16 +5,19 @@ from collections import defaultdict
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
+from django.core.paginator import Paginator
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from contas.decorators import cargo_required
 from contas.models import Usuario
 
+from . import historico
 from .models import (
     Agenda,
     ContaBancaria,
     Horario,
+    LogAgenda,
     Medico,
     Procedimento,
     ProcedimentoAgenda,
@@ -523,11 +526,13 @@ def _salvar_agenda(request, agenda, unidades_ids):
     esperancas = post.getlist("esperanca_pacientes[]")
     reais = post.getlist("real_pacientes[]")
 
+    antes = historico.snapshot(agenda) if agenda else None
+    alteracoes_extras = []
     recorrencia = None
     if agenda:
-        datas = [agenda.horario.data]
+        datas = [data_inicial]
         if agenda.recorrencia_id:
-            _encurtar_recorrencia(agenda, data_final)
+            alteracoes_extras = _encurtar_recorrencia(agenda, data_final, data_inicial)
     elif frequencia == "semanal" and data_final > data_inicial:
         dia_semana = post.get("dia_semana")
         dia_semana = int(dia_semana) if dia_semana is not None and dia_semana != "" else data_inicial.weekday()
@@ -558,6 +563,7 @@ def _salvar_agenda(request, agenda, unidades_ids):
             agenda = Agenda.objects.create(horario=horario, recorrencia=recorrencia)
 
         if sala:
+            SalaHorario.objects.filter(horario=horario).exclude(sala=sala).delete()
             SalaHorario.objects.get_or_create(sala=sala, horario=horario)
 
         agenda.concierge = concierge
@@ -584,24 +590,65 @@ def _salvar_agenda(request, agenda, unidades_ids):
         agendas_salvas.append(agenda)
         agenda = None  # força criação de nova agenda/horario na próxima iteração (recorrência)
 
+    _registrar_salvamento(request.user, antes, agendas_salvas, recorrencia, alteracoes_extras)
     return redirect("agendas:home")
 
 
-def _encurtar_recorrencia(agenda, nova_data_final):
+def _registrar_salvamento(usuario, antes, agendas_salvas, recorrencia, alteracoes_extras):
+    """Uma única linha de histórico por clique em Salvar (mesmo quando gera várias agendas)."""
+    primeira = historico.carregar(agendas_salvas[0].id)
+    depois = historico.snapshot(primeira)
+
+    if antes:
+        alteracoes = historico.diferencas(antes, depois) + alteracoes_extras
+        historico.registrar(usuario, LogAgenda.Acao.MODIFICACAO, primeira, alteracoes)
+    elif recorrencia:
+        depois.pop("Data")
+        alteracoes = historico.como_cadastro(depois) + [
+            {"campo": "Recorrência", "antes": "", "depois": historico.descrever_recorrencia(recorrencia)},
+            {"campo": "Agendas criadas", "antes": "", "depois": historico.lista_datas(agendas_salvas)},
+        ]
+        resumo_texto = f"Recorrência com {len(agendas_salvas)} agendas · {historico.resumo(primeira)}"
+        historico.registrar(usuario, LogAgenda.Acao.CADASTRO, primeira, alteracoes, resumo_texto)
+    else:
+        historico.registrar(usuario, LogAgenda.Acao.CADASTRO, primeira, historico.como_cadastro(depois))
+
+
+def _encurtar_recorrencia(agenda, nova_data_final, data_agenda):
     """Antecipa a data final da recorrência da agenda, excluindo as agendas posteriores a ela.
 
-    A nova data final nunca fica antes da própria agenda em edição, e só é possível
-    encurtar (estender exigiria gerar novas agendas).
+    A nova data final nunca fica antes da própria agenda em edição (que nunca é excluída aqui),
+    e só é possível encurtar (estender exigiria gerar novas agendas).
+    Retorna as alterações para o histórico.
     """
     recorrencia = agenda.recorrencia
-    nova_data_final = max(nova_data_final, agenda.horario.data)
+    nova_data_final = max(nova_data_final, data_agenda)
     if nova_data_final >= recorrencia.data_final:
-        return
+        return []
+
+    excluidas = list(
+        Agenda.objects.select_related("horario")
+        .filter(recorrencia=recorrencia, horario__data__gt=nova_data_final)
+        .exclude(pk=agenda.pk)
+        .order_by("horario__data")
+    )
+    alteracoes = [
+        {
+            "campo": "Data final da recorrência",
+            "antes": f"{recorrencia.data_final:%d/%m/%Y}",
+            "depois": f"{nova_data_final:%d/%m/%Y}",
+        }
+    ]
+    if excluidas:
+        alteracoes.append(
+            {"campo": "Agendas excluídas da recorrência", "antes": historico.lista_datas(excluidas), "depois": ""}
+        )
 
     # Excluir o Horario remove em cascata a Agenda, a SalaHorario e os ProcedimentoAgenda.
-    Horario.objects.filter(agenda__recorrencia=recorrencia, data__gt=nova_data_final).delete()
+    Horario.objects.filter(agenda__in=excluidas).delete()
     recorrencia.data_final = nova_data_final
     recorrencia.save(update_fields=["data_final"])
+    return alteracoes
 
 
 def _editar_pacientes_reais(request, agenda_id):
@@ -616,10 +663,14 @@ def _editar_pacientes_reais(request, agenda_id):
         raise PermissionDenied
 
     if request.method == "POST":
+        antes = historico.snapshot(agenda)
         pa_ids = request.POST.getlist("procedimento_agenda_id[]")
         reais = request.POST.getlist("real_pacientes[]")
-        for pa_id, real in zip(pa_ids, reais):
-            ProcedimentoAgenda.objects.filter(pk=pa_id, agenda=agenda).update(real_pacientes=real or None)
+        with transaction.atomic():
+            for pa_id, real in zip(pa_ids, reais):
+                ProcedimentoAgenda.objects.filter(pk=pa_id, agenda=agenda).update(real_pacientes=real or None)
+            alteracoes = historico.diferencas(antes, historico.snapshot(historico.carregar(agenda.id)))
+            historico.registrar(request.user, LogAgenda.Acao.MODIFICACAO, agenda, alteracoes)
         return redirect("agendas:home")
 
     procedimentos_agenda = list(agenda.procedimentoagenda_set.select_related("procedimento"))
@@ -640,17 +691,35 @@ def excluir_agenda(request, agenda_id):
         raise PermissionDenied
 
     if request.method == "POST":
-        recorrencia = agenda.recorrencia
-        if recorrencia and request.POST.get("escopo") == "posteriores":
-            # Excluir o Horario remove em cascata a Agenda, a SalaHorario e os ProcedimentoAgenda.
-            Horario.objects.filter(agenda__recorrencia=recorrencia, data__gte=agenda.horario.data).delete()
-        else:
-            horario = agenda.horario
-            agenda.delete()
-            horario.delete()
-        if recorrencia:
-            _ajustar_fim_recorrencia(recorrencia)
+        with transaction.atomic():
+            _excluir_agenda(request, agenda)
     return redirect("agendas:home")
+
+
+def _excluir_agenda(request, agenda):
+    recorrencia = agenda.recorrencia
+    alteracoes = historico.como_exclusao(historico.snapshot(agenda))
+    resumo_texto = historico.resumo(agenda)
+
+    if recorrencia and request.POST.get("escopo") == "posteriores":
+        excluidas = list(
+            Agenda.objects.select_related("horario")
+            .filter(recorrencia=recorrencia, horario__data__gte=agenda.horario.data)
+            .order_by("horario__data")
+        )
+        alteracoes.append({"campo": "Agendas excluídas", "antes": historico.lista_datas(excluidas), "depois": ""})
+        resumo_texto = f"Esta e as posteriores da recorrência ({len(excluidas)} agendas) · {resumo_texto}"
+        historico.registrar(request.user, LogAgenda.Acao.EXCLUSAO, agenda, alteracoes, resumo_texto)
+        # Excluir o Horario remove em cascata a Agenda, a SalaHorario e os ProcedimentoAgenda.
+        Horario.objects.filter(agenda__in=excluidas).delete()
+    else:
+        historico.registrar(request.user, LogAgenda.Acao.EXCLUSAO, agenda, alteracoes, resumo_texto)
+        horario = agenda.horario
+        agenda.delete()
+        horario.delete()
+
+    if recorrencia:
+        _ajustar_fim_recorrencia(recorrencia)
 
 
 def _ajustar_fim_recorrencia(recorrencia):
@@ -663,6 +732,45 @@ def _ajustar_fim_recorrencia(recorrencia):
     elif ultima_data != recorrencia.data_final:
         recorrencia.data_final = ultima_data
         recorrencia.save(update_fields=["data_final"])
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def historico_agendas(request):
+    acao = request.GET.get("acao", "")
+    usuario_id = request.GET.get("usuario", "")
+    unidade_id = request.GET.get("unidade", "")
+    busca = request.GET.get("q", "").strip()
+
+    logs = LogAgenda.objects.select_related("unidade")
+    if acao:
+        logs = logs.filter(acao=acao)
+    if usuario_id:
+        logs = logs.filter(usuario_id=usuario_id)
+    if unidade_id:
+        logs = logs.filter(unidade_id=unidade_id)
+    if busca:
+        filtro = Q(resumo__icontains=busca) | Q(usuario_nome__icontains=busca)
+        numero = busca.lstrip("#")
+        if numero.isdigit():
+            filtro |= Q(agenda_numero=int(numero))
+        logs = logs.filter(filtro)
+
+    pagina = Paginator(logs, 50).get_page(request.GET.get("pagina"))
+    filtros = request.GET.copy()
+    filtros.pop("pagina", None)
+    context = {
+        "em_area_historico": True,
+        "pagina": pagina,
+        "acoes": LogAgenda.Acao.choices,
+        "usuarios": Usuario.objects.filter(logs_agenda__isnull=False).distinct().order_by("username"),
+        "unidades": Unidade.objects.all(),
+        "acao": acao,
+        "usuario_id": usuario_id,
+        "unidade_id": unidade_id,
+        "busca": busca,
+        "filtros_query": filtros.urlencode(),
+    }
+    return render(request, "agendas/historico.html", context)
 
 
 @cargo_required(Cargo.ADMINISTRADOR)

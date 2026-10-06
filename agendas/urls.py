@@ -10,6 +10,7 @@ urlpatterns = [
     path("agenda/nova/", views.cadastro_agenda, name="cadastro_agenda_nova"),
     path("agenda/<int:agenda_id>/editar/", views.cadastro_agenda, name="cadastro_agenda_editar"),
     path("agenda/<int:agenda_id>/excluir/", views.excluir_agenda, name="agenda_excluir"),
+    path("historico/", views.historico_agendas, name="historico"),
     path("cadastros/", views.cadastros_home, name="cadastros_home"),
     path("medicos/", views.medicos_lista, name="medicos_lista"),
     path("medicos/novo/", views.medico_form, name="medico_novo"),

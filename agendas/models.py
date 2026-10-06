@@ -1,5 +1,6 @@
 import datetime
 
+from django.conf import settings
 from django.db import models
 
 
@@ -238,3 +239,33 @@ class ProcedimentoAgenda(models.Model):
 
     def __str__(self):
         return f"{self.procedimento.nome_procedimento} ({self.agenda_id})"
+
+
+class LogAgenda(models.Model):
+    """Histórico de alterações de agendas: uma linha por ação salva (cadastro, modificação, exclusão)."""
+
+    class Acao(models.TextChoices):
+        CADASTRO = "cadastro", "Cadastro"
+        MODIFICACAO = "modificacao", "Modificação"
+        EXCLUSAO = "exclusao", "Exclusão"
+
+    criado_em = models.DateTimeField(auto_now_add=True, db_index=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="logs_agenda"
+    )
+    # Cópias de texto para o histórico continuar legível mesmo se o usuário/agenda forem excluídos.
+    usuario_nome = models.CharField(max_length=150)
+    usuario_cargo = models.CharField(max_length=50, blank=True)
+    acao = models.CharField(max_length=20, choices=Acao.choices)
+    agenda_numero = models.PositiveIntegerField(null=True, blank=True)
+    unidade = models.ForeignKey(Unidade, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    resumo = models.CharField(max_length=255)
+    alteracoes = models.JSONField(default=list, help_text='Lista de {"campo", "antes", "depois"}')
+
+    class Meta:
+        verbose_name = "Histórico de Agenda"
+        verbose_name_plural = "Histórico de Agendas"
+        ordering = ["-criado_em", "-id"]
+
+    def __str__(self):
+        return f"{self.get_acao_display()} - Agenda #{self.agenda_numero} por {self.usuario_nome}"
