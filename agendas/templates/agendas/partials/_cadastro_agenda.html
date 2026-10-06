@@ -17,7 +17,7 @@
         </div>
         <div class="col-md-6">
             <label class="form-label">Sala</label>
-            <select class="form-select" name="sala" id="id_sala">
+            <select class="form-select" name="sala" id="id_sala" data-depende-unidade>
                 <option value="">Selecione...</option>
                 {% for s in salas %}
                 <option value="{{ s.id }}" data-unidade="{{ s.unidade_id }}"
@@ -28,10 +28,11 @@
 
         <div class="col-md-6">
             <label class="form-label">Médico Inicial</label>
-            <select class="form-select" name="medico_inicial">
+            <select class="form-select" name="medico_inicial" data-depende-unidade>
                 <option value="">Selecione...</option>
                 {% for m in medicos %}
-                <option value="{{ m.id }}" {% if agenda.medico_inicial_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
+                <option value="{{ m.id }}" data-unidades="{% for u in m.unidades.all %}{{ u.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                    {% if agenda.medico_inicial_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
             </select>
             <div class="btn-group mt-2 w-100" role="group">
@@ -48,10 +49,11 @@
 
         <div class="col-md-6">
             <label class="form-label">Médico Substituto</label>
-            <select class="form-select" name="medico_substituto">
+            <select class="form-select" name="medico_substituto" data-depende-unidade>
                 <option value="">Nenhum</option>
                 {% for m in medicos %}
-                <option value="{{ m.id }}" {% if agenda.medico_atendido_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
+                <option value="{{ m.id }}" data-unidades="{% for u in m.unidades.all %}{{ u.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
+                    {% if agenda.medico_atendido_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
             </select>
             <div class="form-check mt-2">

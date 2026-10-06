@@ -448,7 +448,7 @@ def cadastro_agenda(request, agenda_id=None):
 
     unidades_qs = Unidade.objects.all()
     salas_qs = Sala.objects.select_related("unidade").all()
-    medicos_qs = Medico.objects.all()
+    medicos_qs = Medico.objects.prefetch_related("unidades")
     procedimentos_qs = Procedimento.objects.select_related("unidade").all()
     if unidades_ids is not None:
         unidades_qs = unidades_qs.filter(id__in=unidades_ids)

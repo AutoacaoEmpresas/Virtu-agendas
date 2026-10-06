@@ -72,10 +72,17 @@ function filtrarPorUnidade(unidadeId) {
     document.querySelectorAll("#id_sala option[data-unidade]").forEach((opt) => {
         opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
     });
-    const salaSelect = document.getElementById("id_sala");
-    if (salaSelect && salaSelect.selectedOptions[0] && salaSelect.selectedOptions[0].hidden) {
-        salaSelect.value = "";
-    }
+    // Médicos podem atender em várias unidades (data-unidades="1,3").
+    document.querySelectorAll("option[data-unidades]").forEach((opt) => {
+        opt.hidden = !unidadeId || !opt.dataset.unidades.split(",").includes(unidadeId);
+    });
+    // Sala e médicos dependem da unidade: ficam bloqueados até ela ser escolhida.
+    document.querySelectorAll("select[data-depende-unidade]").forEach((sel) => {
+        sel.disabled = !unidadeId;
+        if (!unidadeId || (sel.selectedOptions[0] && sel.selectedOptions[0].hidden)) {
+            sel.value = "";
+        }
+    });
     document.querySelectorAll('select[name="procedimento[]"]').forEach((sel) => {
         sel.querySelectorAll("option[data-unidade]").forEach((opt) => {
             opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
