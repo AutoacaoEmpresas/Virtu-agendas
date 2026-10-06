@@ -89,6 +89,7 @@ function initCadastroForm() {
         filtrarPorUnidade(unidadeSelect.value);
     }
     initFrequenciaToggle();
+    atualizarAvisoRecorrencia();
     recalcularValores();
 }
 
@@ -136,6 +137,24 @@ function marcarDiaSemanaPorData(dataStr, force) {
     const radio = document.getElementById(`dia_semana_${diaSemana}`);
     if (radio && (force || !document.querySelector('[name="dia_semana"]:checked'))) {
         radio.checked = true;
+    }
+}
+
+// Datas (YYYY-MM-DD) da recorrência que seriam excluídas com a data final atual do campo.
+function datasRecorrenciaExcluidas() {
+    const input = document.getElementById("id_data_final_recorrencia");
+    if (!input || !input.value || !input.dataset.datasRecorrencia) return [];
+    return input.dataset.datasRecorrencia.split(",").filter((d) => d > input.value);
+}
+
+function atualizarAvisoRecorrencia() {
+    const aviso = document.getElementById("aviso-encurtar-recorrencia");
+    if (!aviso) return;
+    const datas = datasRecorrenciaExcluidas();
+    aviso.hidden = datas.length === 0;
+    if (datas.length) {
+        const formatadas = datas.map((d) => d.split("-").reverse().join("/")).join(", ");
+        aviso.textContent = `${datas.length} agenda(s) desta recorrência serão excluídas ao salvar: ${formatadas}.`;
     }
 }
 
@@ -228,6 +247,13 @@ document.addEventListener("click", function (e) {
 });
 
 document.addEventListener("submit", function (e) {
+    if (e.target.querySelector("#id_data_final_recorrencia")) {
+        const qtd = datasRecorrenciaExcluidas().length;
+        if (qtd && !confirm(`Isso vai excluir ${qtd} agenda(s) posteriores desta recorrência. Essa ação não pode ser desfeita. Continuar?`)) {
+            e.preventDefault();
+            return;
+        }
+    }
     if (e.target.matches(".lista-filtros")) {
         e.preventDefault();
         const form = e.target;
@@ -248,6 +274,9 @@ document.addEventListener("change", function (e) {
     }
     if (e.target.name === "data_inicial") {
         marcarDiaSemanaPorData(e.target.value, true);
+    }
+    if (e.target.id === "id_data_final_recorrencia") {
+        atualizarAvisoRecorrencia();
     }
     if (
         e.target.name === "procedimento[]" ||

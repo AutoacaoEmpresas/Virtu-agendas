@@ -18,6 +18,7 @@ from .models import (
     Medico,
     Procedimento,
     ProcedimentoAgenda,
+    Recorrencia,
     Sala,
     SalaHorario,
     Unidade,
@@ -396,7 +397,7 @@ def cadastro_agenda(request, agenda_id=None):
     agenda = None
     if agenda_id:
         agenda = get_object_or_404(
-            Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido").prefetch_related(
+            Agenda.objects.select_related("horario", "medico_inicial", "medico_atendido", "recorrencia").prefetch_related(
                 "horario__salas__unidade", "procedimentoagenda_set__procedimento"
             ),
             pk=agenda_id,
@@ -435,6 +436,16 @@ def cadastro_agenda(request, agenda_id=None):
     if agenda:
         procedimentos_agenda = list(agenda.procedimentoagenda_set.select_related("procedimento"))
 
+    # Datas das agendas da mesma recorrência a partir desta (usadas pelo JS para avisar
+    # quantas serão excluídas ao encurtar a data final).
+    datas_recorrencia = []
+    if agenda and agenda.recorrencia_id:
+        datas_recorrencia = list(
+            Horario.objects.filter(
+                agenda__recorrencia_id=agenda.recorrencia_id, data__gt=agenda.horario.data
+            ).values_list("data", flat=True)
+        )
+
     unidades_qs = Unidade.objects.all()
     salas_qs = Sala.objects.select_related("unidade").all()
     medicos_qs = Medico.objects.all()
@@ -459,6 +470,8 @@ def cadastro_agenda(request, agenda_id=None):
         "procedimentos_agenda": procedimentos_agenda,
         "dias_semana_opcoes": list(enumerate(DIAS_SEMANA_ABREV)),
         "pode_excluir": agenda is not None,
+        "recorrencia": agenda.recorrencia if agenda else None,
+        "datas_recorrencia": ",".join(d.isoformat() for d in datas_recorrencia),
     }
     return render(request, "agendas/partials/_cadastro_agenda.html", context)
 
@@ -496,13 +509,23 @@ def _salvar_agenda(request, agenda, unidades_ids):
     esperancas = post.getlist("esperanca_pacientes[]")
     reais = post.getlist("real_pacientes[]")
 
+    recorrencia = None
     if agenda:
         datas = [agenda.horario.data]
+        if agenda.recorrencia_id:
+            _encurtar_recorrencia(agenda, data_final)
     elif frequencia == "semanal" and data_final > data_inicial:
         dia_semana = post.get("dia_semana")
         dia_semana = int(dia_semana) if dia_semana is not None and dia_semana != "" else data_inicial.weekday()
         intervalo_semanas = 2 if post.get("intervalo_semanas") == "2" else 1
         datas = _datas_recorrentes(data_inicial, data_final, dia_semana, intervalo_semanas)
+        if len(datas) > 1:
+            recorrencia = Recorrencia.objects.create(
+                data_inicial=data_inicial,
+                data_final=data_final,
+                dia_semana=dia_semana,
+                intervalo_semanas=intervalo_semanas,
+            )
     else:
         datas = [data_inicial]
 
@@ -518,7 +541,7 @@ def _salvar_agenda(request, agenda, unidades_ids):
             horario = Horario.objects.create(
                 data=data_evento, horario_inicio=horario_inicio, horario_fim=horario_fim
             )
-            agenda = Agenda.objects.create(horario=horario)
+            agenda = Agenda.objects.create(horario=horario, recorrencia=recorrencia)
 
         if sala:
             SalaHorario.objects.get_or_create(sala=sala, horario=horario)
@@ -547,6 +570,23 @@ def _salvar_agenda(request, agenda, unidades_ids):
         agenda = None  # força criação de nova agenda/horario na próxima iteração (recorrência)
 
     return redirect("agendas:home")
+
+
+def _encurtar_recorrencia(agenda, nova_data_final):
+    """Antecipa a data final da recorrência da agenda, excluindo as agendas posteriores a ela.
+
+    A nova data final nunca fica antes da própria agenda em edição, e só é possível
+    encurtar (estender exigiria gerar novas agendas).
+    """
+    recorrencia = agenda.recorrencia
+    nova_data_final = max(nova_data_final, agenda.horario.data)
+    if nova_data_final >= recorrencia.data_final:
+        return
+
+    # Excluir o Horario remove em cascata a Agenda, a SalaHorario e os ProcedimentoAgenda.
+    Horario.objects.filter(agenda__recorrencia=recorrencia, data__gt=nova_data_final).delete()
+    recorrencia.data_final = nova_data_final
+    recorrencia.save(update_fields=["data_final"])
 
 
 def _editar_pacientes_reais(request, agenda_id):

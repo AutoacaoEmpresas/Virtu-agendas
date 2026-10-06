@@ -75,8 +75,24 @@
         </div>
         <div class="col-md-3">
             <label class="form-label">Data Final</label>
+            {% if recorrencia %}
+            <input type="date" class="form-control" name="data_final" id="id_data_final_recorrencia"
+                   value="{{ recorrencia.data_final|date:'Y-m-d' }}"
+                   min="{{ data_pref|date:'Y-m-d' }}" max="{{ recorrencia.data_final|date:'Y-m-d' }}"
+                   data-datas-recorrencia="{{ datas_recorrencia }}">
+            {% else %}
             <input type="date" class="form-control" name="data_final" value="{{ data_pref|date:'Y-m-d' }}">
+            {% endif %}
         </div>
+        {% if recorrencia %}
+        <div class="col-12">
+            <div class="form-text">
+                Esta agenda faz parte de uma recorrência até {{ recorrencia.data_final|date:'d/m/Y' }}.
+                Antecipar a data final exclui as agendas desta recorrência posteriores à nova data.
+            </div>
+            <div class="alert alert-warning py-2 mt-2 mb-0 small" id="aviso-encurtar-recorrencia" hidden></div>
+        </div>
+        {% endif %}
 
         <div class="col-md-6">
             <label class="form-label">Concierge</label>

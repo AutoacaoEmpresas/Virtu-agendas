@@ -12,6 +12,7 @@ from agendas.models import (
     Medico,
     Procedimento,
     ProcedimentoAgenda,
+    Recorrencia,
     Sala,
     SalaHorario,
     Unidade,
@@ -79,6 +80,7 @@ class Command(BaseCommand):
             self.stdout.write("Limpando dados existentes...")
             ProcedimentoAgenda.objects.all().delete()
             Agenda.objects.all().delete()
+            Recorrencia.objects.all().delete()
             SalaHorario.objects.all().delete()
             Horario.objects.all().delete()
             Procedimento.objects.all().delete()

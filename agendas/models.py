@@ -133,8 +133,27 @@ class SalaHorario(models.Model):
         return f"{self.sala.nome} @ {self.horario}"
 
 
+class Recorrencia(models.Model):
+    """Agrupa as agendas geradas de uma vez por uma recorrência semanal."""
+
+    data_inicial = models.DateField()
+    data_final = models.DateField()
+    dia_semana = models.PositiveSmallIntegerField(help_text="0 = Segunda ... 6 = Domingo")
+    intervalo_semanas = models.PositiveSmallIntegerField(default=1)
+
+    class Meta:
+        verbose_name = "Recorrência"
+        verbose_name_plural = "Recorrências"
+
+    def __str__(self):
+        return f"Recorrência #{self.id} ({self.data_inicial} a {self.data_final})"
+
+
 class Agenda(models.Model):
     concierge = models.CharField(max_length=150, blank=True)
+    recorrencia = models.ForeignKey(
+        Recorrencia, on_delete=models.SET_NULL, null=True, blank=True, related_name="agendas"
+    )
     tipo_calculo_pagamento = models.BooleanField(
         default=True, help_text="True = Por Procedimento, False = Por Paciente"
     )

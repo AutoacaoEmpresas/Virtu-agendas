@@ -7,6 +7,7 @@ from .models import (
     Medico,
     Procedimento,
     ProcedimentoAgenda,
+    Recorrencia,
     Sala,
     SalaHorario,
     Unidade,
@@ -23,3 +24,4 @@ admin.site.register(Horario)
 admin.site.register(SalaHorario)
 admin.site.register(Agenda)
 admin.site.register(ProcedimentoAgenda)
+admin.site.register(Recorrencia)
