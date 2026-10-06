@@ -150,7 +150,15 @@ class Recorrencia(models.Model):
 
 
 class Agenda(models.Model):
+    class StatusMedicoInicial(models.TextChoices):
+        PENDENTE = "pendente", "Pendente"
+        CONFIRMADO = "confirmado", "Confirmado"
+        CANCELADO = "cancelado", "Cancelado"
+
     concierge = models.CharField(max_length=150, blank=True)
+    status_medico_inicial = models.CharField(
+        max_length=20, choices=StatusMedicoInicial.choices, default=StatusMedicoInicial.PENDENTE
+    )
     recorrencia = models.ForeignKey(
         Recorrencia, on_delete=models.SET_NULL, null=True, blank=True, related_name="agendas"
     )
@@ -176,6 +184,15 @@ class Agenda(models.Model):
     def __str__(self):
         medico = self.medico_inicial.nome if self.medico_inicial else "Sem médico"
         return f"Agenda #{self.id} - {medico} - {self.horario}"
+
+    @property
+    def status(self):
+        """Status geral da agenda: 'confirmado', 'cancelado' (sem substituto) ou 'esperando'."""
+        if self.confirmacao_medico:
+            return "confirmado"
+        if self.status_medico_inicial == self.StatusMedicoInicial.CANCELADO and not self.medico_atendido_id:
+            return "cancelado"
+        return "esperando"
 
     @property
     def sala(self):

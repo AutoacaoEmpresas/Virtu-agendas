@@ -44,8 +44,10 @@
                 <td>{{ linha.pacientes_esperados }}</td>
                 <td>{{ linha.unidade.nome|default:"-" }}</td>
                 <td>
-                    {% if linha.agenda.confirmacao_medico %}
+                    {% if linha.agenda.status == "confirmado" %}
                         <span class="badge bg-success">Confirmado</span>
+                    {% elif linha.agenda.status == "cancelado" %}
+                        <span class="badge bg-danger">Cancelado</span>
                     {% else %}
                         <span class="badge bg-warning text-dark">Esperando</span>
                     {% endif %}

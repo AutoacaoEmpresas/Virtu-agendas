@@ -485,17 +485,31 @@ def _salvar_agenda(request, agenda, unidades_ids):
     if sala and unidades_ids is not None and sala.unidade_id not in unidades_ids:
         raise PermissionDenied
 
-    medico_inicial_id = post.get("medico_inicial") or None
-    medico_inicial_status = post.get("medico_inicial_status", "cancelado")
+    # Depois de alocado, o médico inicial não muda: só o status dele (e o substituto, se cancelar).
+    if agenda and agenda.medico_inicial_id:
+        medico_inicial_id = agenda.medico_inicial_id
+    else:
+        medico_inicial_id = post.get("medico_inicial") or None
+
+    Status = Agenda.StatusMedicoInicial
+    status_medico_inicial = post.get("medico_inicial_status")
+    if not medico_inicial_id or status_medico_inicial not in (Status.CONFIRMADO, Status.CANCELADO):
+        status_medico_inicial = Status.PENDENTE
+
     medico_substituto_id = post.get("medico_substituto") or None
+    if medico_substituto_id == str(medico_inicial_id):
+        medico_substituto_id = None
     medico_substituto_confirmado = post.get("medico_substituto_confirmado") == "on"
 
-    if medico_substituto_id:
+    if status_medico_inicial == Status.CONFIRMADO:
+        medico_atendido_id = medico_inicial_id
+        confirmacao_medico = True
+    elif status_medico_inicial == Status.CANCELADO and medico_substituto_id:
         medico_atendido_id = medico_substituto_id
         confirmacao_medico = medico_substituto_confirmado
     else:
-        medico_atendido_id = medico_inicial_id if medico_inicial_status == "confirmado" else None
-        confirmacao_medico = medico_inicial_status == "confirmado"
+        medico_atendido_id = None
+        confirmacao_medico = False
 
     data_inicial = _parse_date(post.get("data_inicial"), datetime.date.today())
     data_final = _parse_date(post.get("data_final"), data_inicial)
@@ -549,6 +563,7 @@ def _salvar_agenda(request, agenda, unidades_ids):
         agenda.concierge = concierge
         agenda.tipo_calculo_pagamento = tipo_calculo_pagamento
         agenda.confirmacao_medico = confirmacao_medico
+        agenda.status_medico_inicial = status_medico_inicial
         agenda.medico_inicial_id = medico_inicial_id
         agenda.medico_atendido_id = medico_atendido_id
         agenda.save()

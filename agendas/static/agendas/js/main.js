@@ -83,11 +83,44 @@ function filtrarPorUnidade(unidadeId) {
             sel.value = "";
         }
     });
+    atualizarCamposMedico();
     document.querySelectorAll('select[name="procedimento[]"]').forEach((sel) => {
         sel.querySelectorAll("option[data-unidade]").forEach((opt) => {
             opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
         });
     });
+}
+
+// Status do médico inicial: só existe com médico escolhido; o substituto só é liberado
+// quando o inicial cancela, e o "Confirmado" do substituto só com um substituto escolhido.
+function atualizarCamposMedico() {
+    const unidadeSelect = document.getElementById("id_unidade");
+    const inicial = document.getElementById("id_medico_inicial");
+    const substituto = document.getElementById("id_medico_substituto");
+    const substitutoConfirmado = document.getElementById("substituto_confirmado");
+    if (!inicial || !substituto || !substitutoConfirmado) return;
+
+    const temInicial = !!inicial.value;
+    document.querySelectorAll('[name="medico_inicial_status"]').forEach((radio) => {
+        radio.disabled = !temInicial;
+        if (!temInicial) radio.checked = false;
+    });
+
+    // O inicial não pode ser o próprio substituto.
+    substituto.querySelectorAll("option[data-unidades]").forEach((opt) => {
+        if (opt.value === inicial.value) opt.hidden = true;
+    });
+    if (substituto.selectedOptions[0] && substituto.selectedOptions[0].hidden) substituto.value = "";
+
+    const cancelado = temInicial && document.getElementById("status_cancelado").checked;
+    substituto.disabled = !cancelado || !(unidadeSelect && unidadeSelect.value);
+    if (!cancelado) substituto.value = "";
+
+    substitutoConfirmado.disabled = substituto.disabled || !substituto.value;
+    if (substitutoConfirmado.disabled) substitutoConfirmado.checked = false;
+
+    const ajuda = document.getElementById("ajuda-substituto");
+    if (ajuda) ajuda.hidden = cancelado;
 }
 
 function initCadastroForm() {
@@ -281,6 +314,13 @@ document.addEventListener("change", function (e) {
     }
     if (e.target.name === "data_inicial") {
         marcarDiaSemanaPorData(e.target.value, true);
+    }
+    if (e.target.id === "id_medico_inicial") {
+        // Refiltra para reexibir, no substituto, o médico inicial anterior.
+        filtrarPorUnidade(document.getElementById("id_unidade").value);
+    }
+    if (e.target.id === "id_medico_substituto" || e.target.name === "medico_inicial_status") {
+        atualizarCamposMedico();
     }
     if (e.target.id === "id_data_final_recorrencia") {
         atualizarAvisoRecorrencia();

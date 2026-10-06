@@ -175,6 +175,11 @@ class Command(BaseCommand):
                         concierge=random.choice(CONCIERGES),
                         tipo_calculo_pagamento=random.random() > 0.5,
                         confirmacao_medico=confirmado if not medico_substituto else True,
+                        status_medico_inicial=(
+                            "cancelado" if medico_substituto
+                            else "confirmado" if confirmado
+                            else "pendente"
+                        ) if medico_inicial else "pendente",
                         horario=horario,
                         medico_inicial=medico_inicial,
                         medico_atendido=medico_substituto or (medico_inicial if confirmado else None),

@@ -28,39 +28,43 @@
 
         <div class="col-md-6">
             <label class="form-label">Médico Inicial</label>
-            <select class="form-select" name="medico_inicial" data-depende-unidade>
+            {% with travado=agenda.medico_inicial_id %}
+            <select class="form-select" name="medico_inicial" id="id_medico_inicial"
+                    {% if travado %}disabled data-travado{% else %}data-depende-unidade{% endif %}>
                 <option value="">Selecione...</option>
                 {% for m in medicos %}
                 <option value="{{ m.id }}" data-unidades="{% for u in m.unidades.all %}{{ u.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
                     {% if agenda.medico_inicial_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
             </select>
+            {% if travado %}<div class="form-text">O médico inicial não pode ser alterado. Se ele cancelar, escolha um substituto.</div>{% endif %}
+            {% endwith %}
             <div class="btn-group mt-2 w-100" role="group">
                 <input type="radio" class="btn-check" name="medico_inicial_status" id="status_confirmado" value="confirmado"
-                    {% if agenda.confirmacao_medico and not agenda.medico_atendido_id %}checked{% endif %}
-                    {% if not agenda %}checked{% endif %}>
+                    {% if agenda.status_medico_inicial == "confirmado" %}checked{% endif %}>
                 <label class="btn btn-outline-success btn-sm" for="status_confirmado">Confirmado</label>
 
                 <input type="radio" class="btn-check" name="medico_inicial_status" id="status_cancelado" value="cancelado"
-                    {% if agenda and not agenda.confirmacao_medico %}checked{% endif %}>
+                    {% if agenda.status_medico_inicial == "cancelado" %}checked{% endif %}>
                 <label class="btn btn-outline-danger btn-sm" for="status_cancelado">Cancelado</label>
             </div>
         </div>
 
         <div class="col-md-6">
             <label class="form-label">Médico Substituto</label>
-            <select class="form-select" name="medico_substituto" data-depende-unidade>
+            <select class="form-select" name="medico_substituto" id="id_medico_substituto" data-depende-unidade>
                 <option value="">Nenhum</option>
                 {% for m in medicos %}
                 <option value="{{ m.id }}" data-unidades="{% for u in m.unidades.all %}{{ u.id }}{% if not forloop.last %},{% endif %}{% endfor %}"
-                    {% if agenda.medico_atendido_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
+                    {% if agenda.status_medico_inicial == "cancelado" and agenda.medico_atendido_id == m.id %}selected{% endif %}>{{ m.nome }}</option>
                 {% endfor %}
             </select>
             <div class="form-check mt-2">
                 <input class="form-check-input" type="checkbox" name="medico_substituto_confirmado" id="substituto_confirmado"
-                    {% if agenda.medico_atendido_id and agenda.confirmacao_medico %}checked{% endif %}>
+                    {% if agenda.status_medico_inicial == "cancelado" and agenda.medico_atendido_id and agenda.confirmacao_medico %}checked{% endif %}>
                 <label class="form-check-label" for="substituto_confirmado">Confirmado</label>
             </div>
+            <div class="form-text" id="ajuda-substituto">Disponível quando o médico inicial cancelar.</div>
         </div>
 
         <div class="col-md-3">
