@@ -47,6 +47,14 @@ function loadConciergeForm(usuarioId) {
     });
 }
 
+function loadProcedimentoForm(procedimentoId) {
+    const url = procedimentoId ? `/cadastros/procedimentos/${procedimentoId}/editar/` : "/cadastros/procedimentos/novo/";
+    fetch(url).then((r) => r.text()).then((html) => {
+        document.getElementById("modalProcedimentoContent").innerHTML = html;
+        getModal("modalProcedimento").show();
+    });
+}
+
 function initSidebarToggle() {
     const sidebar = document.getElementById("appSidebar");
     const botao = document.getElementById("btn-toggle-sidebar");
@@ -84,9 +92,21 @@ function filtrarPorUnidade(unidadeId) {
         }
     });
     atualizarCamposMedico();
+}
+
+// Procedimentos da unidade escolhida; os exclusivos só aparecem para o médico dono deles.
+function filtrarProcedimentos() {
+    const unidadeSelect = document.getElementById("id_unidade");
+    const unidadeId = unidadeSelect ? unidadeSelect.value : "";
+    const medicos = ["id_medico_inicial", "id_medico_substituto"]
+        .map((id) => document.getElementById(id))
+        .filter((sel) => sel && sel.value)
+        .map((sel) => sel.value);
     document.querySelectorAll('select[name="procedimento[]"]').forEach((sel) => {
         sel.querySelectorAll("option[data-unidade]").forEach((opt) => {
-            opt.hidden = !(!unidadeId || opt.dataset.unidade === unidadeId);
+            const daUnidade = !unidadeId || opt.dataset.unidade === unidadeId;
+            const exclusivo = opt.dataset.medicoExclusivo;
+            opt.hidden = !daUnidade || (!!exclusivo && !medicos.includes(exclusivo));
         });
     });
 }
@@ -118,6 +138,7 @@ function atualizarCamposMedico() {
 
     substitutoConfirmado.disabled = substituto.disabled || !substituto.value;
     if (substitutoConfirmado.disabled) substitutoConfirmado.checked = false;
+    filtrarProcedimentos();
 
     const ajuda = document.getElementById("ajuda-substituto");
     if (ajuda) ajuda.hidden = cancelado;
@@ -142,10 +163,6 @@ function recalcularValores() {
     const realEl = document.getElementById("valor-real");
     if (!previstoEl || !realEl) return;
 
-    const porProcedimento = document.getElementById("calc_procedimento")
-        ? document.getElementById("calc_procedimento").checked
-        : true;
-
     let totalPrevisto = 0;
     let totalReal = 0;
     document.querySelectorAll(".linha-procedimento").forEach((linha) => {
@@ -153,13 +170,16 @@ function recalcularValores() {
         const opt = select ? select.selectedOptions[0] : null;
         const valorBase = opt && opt.dataset.valor ? parseFloat(opt.dataset.valor) : 0;
         if (!valorBase) return;
+        const porProcedimento = opt.dataset.tipoCalculo !== "paciente";
 
         const esperancaInput = linha.querySelector('input[name="esperanca_pacientes[]"]');
         const realInput = linha.querySelector('input[name="real_pacientes[]"]');
         const esperanca = esperancaInput && esperancaInput.value ? parseInt(esperancaInput.value, 10) : 0;
         const real = realInput && realInput.value ? parseInt(realInput.value, 10) : 0;
 
-        totalPrevisto += porProcedimento ? valorBase : valorBase * esperanca;
+        if (esperanca) {
+            totalPrevisto += porProcedimento ? valorBase : valorBase * esperanca;
+        }
         if (real) {
             totalReal += porProcedimento ? valorBase : valorBase * real;
         }
@@ -271,6 +291,20 @@ document.addEventListener("click", function (e) {
         return;
     }
 
+    const abrirProcedimentoBtn = e.target.closest(".abrir-procedimento");
+    if (abrirProcedimentoBtn) {
+        loadProcedimentoForm(abrirProcedimentoBtn.dataset.procedimentoId);
+        return;
+    }
+
+    const excluirProcedimentoBtn = e.target.closest(".btn-excluir-procedimento");
+    if (excluirProcedimentoBtn) {
+        if (confirm("Excluir este procedimento? Essa ação não pode ser desfeita.")) {
+            document.getElementById(`form-excluir-procedimento-${excluirProcedimentoBtn.dataset.procedimentoId}`).submit();
+        }
+        return;
+    }
+
     const abrirConciergeBtn = e.target.closest(".abrir-concierge");
     if (abrirConciergeBtn) {
         loadConciergeForm(abrirConciergeBtn.dataset.conciergeId);
@@ -328,8 +362,7 @@ document.addEventListener("change", function (e) {
     if (
         e.target.name === "procedimento[]" ||
         e.target.name === "esperanca_pacientes[]" ||
-        e.target.name === "real_pacientes[]" ||
-        e.target.name === "tipo_calculo_pagamento"
+        e.target.name === "real_pacientes[]"
     ) {
         recalcularValores();
     }

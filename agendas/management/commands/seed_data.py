@@ -8,6 +8,7 @@ from contas.models import Usuario
 from agendas.models import (
     Agenda,
     ContaBancaria,
+    FechamentoRepasse,
     Horario,
     Medico,
     Procedimento,
@@ -18,6 +19,7 @@ from agendas.models import (
     Unidade,
     UnidadeMedico,
 )
+from agendas.utils import somar_meses
 
 UNIDADES = [
     "Hospital Evangélico - BH",
@@ -48,13 +50,14 @@ MEDICOS = [
     ("Dra. Patrícia Gomes", "Retina"),
 ]
 
+# (nome, valor base, tipo de cálculo, prazo de repasse em meses)
 PROCEDIMENTOS = [
-    ("Consulta Oftalmológica", 250.00),
-    ("Cirurgia de Catarata", 3500.00),
-    ("Exame de Fundo de Olho", 180.00),
-    ("Cirurgia Refrativa a Laser", 4200.00),
-    ("Mapeamento de Retina", 320.00),
-    ("Tonometria (Pressão Ocular)", 120.00),
+    ("Consulta Oftalmológica", 250.00, "paciente", 1),
+    ("Cirurgia de Catarata", 3500.00, "procedimento", 3),
+    ("Exame de Fundo de Olho", 180.00, "paciente", 1),
+    ("Cirurgia Refrativa a Laser", 4200.00, "procedimento", 3),
+    ("Mapeamento de Retina", 320.00, "paciente", 1),
+    ("Tonometria (Pressão Ocular)", 120.00, "paciente", 1),
 ]
 
 CONCIERGES = ["Beatriz Souza", "João Pedro Alves", "Camila Ferreira", ""]
@@ -78,6 +81,7 @@ class Command(BaseCommand):
 
         if not options["sem_limpar"]:
             self.stdout.write("Limpando dados existentes...")
+            FechamentoRepasse.objects.all().delete()
             ProcedimentoAgenda.objects.all().delete()
             Agenda.objects.all().delete()
             Recorrencia.objects.all().delete()
@@ -125,20 +129,24 @@ class Command(BaseCommand):
 
         procedimentos = []
         for unidade in unidades:
-            for nome_proc, valor in PROCEDIMENTOS:
+            for nome_proc, valor, tipo_calculo, prazo in PROCEDIMENTOS:
                 procedimentos.append(
                     Procedimento.objects.create(
                         nome_procedimento=nome_proc,
                         valor_base=valor,
                         especialidade="Oftalmologia",
                         unidade=unidade,
+                        tipo_calculo=tipo_calculo,
+                        prazo_repasse_meses=prazo,
                     )
                 )
         self.stdout.write(f"Criados {len(procedimentos)} procedimentos.")
 
         hoje = datetime.date.today()
         inicio_semana = hoje - datetime.timedelta(days=hoje.weekday())
-        dias = [inicio_semana + datetime.timedelta(days=i) for i in range(14)]  # 2 semanas
+        # 3 meses para trás (agendas já realizadas, para o repasse) + 2 semanas à frente.
+        inicio = somar_meses(hoje, -3)
+        dias = [inicio + datetime.timedelta(days=i) for i in range((inicio_semana - inicio).days + 14)]
 
         turnos = [
             (datetime.time(8, 0), datetime.time(12, 0)),
@@ -173,7 +181,6 @@ class Command(BaseCommand):
 
                     agenda = Agenda.objects.create(
                         concierge=random.choice(CONCIERGES),
-                        tipo_calculo_pagamento=random.random() > 0.5,
                         confirmacao_medico=confirmado if not medico_substituto else True,
                         status_medico_inicial=(
                             "cancelado" if medico_substituto
@@ -185,19 +192,28 @@ class Command(BaseCommand):
                         medico_atendido=medico_substituto or (medico_inicial if confirmado else None),
                     )
 
+                    # Agendas passadas com médico atendendo: ~90% já marcadas como realizadas.
+                    realizada = dia < hoje and agenda.medico_atendido_id and random.random() < 0.9
+                    if realizada:
+                        agenda.realizada = True
+                        agenda.hora_chegada = inicio
+                        agenda.hora_saida = fim
+                        agenda.save()
+
                     if medico_inicial and procedimentos_unidade:
                         for proc in random.sample(
                             procedimentos_unidade, k=random.choice([1, 1, 2])
                         ):
+                            esperanca = random.randint(1, 8)
                             ProcedimentoAgenda.objects.create(
                                 agenda=agenda,
                                 procedimento=proc,
-                                esperanca_pacientes=random.randint(1, 8),
-                                real_pacientes=None,
+                                esperanca_pacientes=esperanca,
+                                real_pacientes=max(0, esperanca + random.randint(-2, 1)) if realizada else None,
                             )
                     total_agendas += 1
 
-        self.stdout.write(self.style.SUCCESS(f"Criadas {total_agendas} agendas ao longo de 2 semanas."))
+        self.stdout.write(self.style.SUCCESS(f"Criadas {total_agendas} agendas."))
         self.stdout.write(self.style.SUCCESS("Seed concluído com sucesso."))
 
     def _seed_usuarios_demo(self, unidades):

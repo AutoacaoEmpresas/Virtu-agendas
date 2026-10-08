@@ -551,3 +551,44 @@ a.icon-btn {
 .historico-alteracoes li + li {
     margin-top: 0.15rem;
 }
+
+/* ==================== Mensagens ==================== */
+.app-mensagens {
+    margin-bottom: 0.75rem;
+}
+
+/* ==================== Repasse médico ==================== */
+.repasse-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+.repasse-card {
+    background: #fff;
+    border-radius: 0.75rem;
+    padding: 0.9rem 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.repasse-card-valor {
+    font-size: 1.25rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+.repasse-card-alerta {
+    border-left: 4px solid #f59f00;
+}
+.repasse-previsao li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.2rem 0;
+    font-variant-numeric: tabular-nums;
+}
+.repasse-previsao a {
+    color: var(--sidebar-text);
+    text-decoration: none;
+}
+.repasse-previsao a:hover {
+    text-decoration: underline;
+}

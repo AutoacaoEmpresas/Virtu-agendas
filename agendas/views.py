@@ -1,21 +1,30 @@
 import calendar
+import csv
 import datetime
 from collections import defaultdict
+from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from contas.decorators import cargo_required
 from contas.models import Usuario
 
-from . import historico
+from . import historico, repasse
+from .utils import parse_mes, somar_meses, ultimo_dia_mes
 from .models import (
     Agenda,
     ContaBancaria,
+    FechamentoRepasse,
     Horario,
     LogAgenda,
     Medico,
@@ -59,23 +68,11 @@ def _monday(date):
     return date - datetime.timedelta(days=date.weekday())
 
 
-def _somar_meses(dia, n):
-    mes_total = dia.month - 1 + n
-    ano = dia.year + mes_total // 12
-    mes = mes_total % 12 + 1
-    return dia.replace(year=ano, month=mes, day=1)
-
-
 def _somar_anos(dia, n):
     try:
         return dia.replace(year=dia.year + n)
     except ValueError:
         return dia.replace(year=dia.year + n, day=28)
-
-
-def _ultimo_dia_mes(primeiro_dia):
-    proximo_mes = _somar_meses(primeiro_dia, 1)
-    return proximo_mes - datetime.timedelta(days=1)
 
 
 def _datas_recorrentes(data_inicial, data_final, dia_semana, intervalo_semanas):
@@ -265,8 +262,8 @@ def _contexto_mes(data_ref, unidade_filtro, busca, unidades_ids=None):
     return {
         "mes_atual_ref": mes_ref,
         "grid_mes": grid,
-        "anterior": _somar_meses(mes_ref, -1).isoformat(),
-        "proximo": _somar_meses(mes_ref, 1).isoformat(),
+        "anterior": somar_meses(mes_ref, -1).isoformat(),
+        "proximo": somar_meses(mes_ref, 1).isoformat(),
     }
 
 
@@ -317,8 +314,8 @@ def home(request):
     mini_mes = _construir_mini_mes(mes_mini_ref.year, mes_mini_ref.month, unidades_ids)
 
     primeiro_dia_mes = mini_mes["mes_ref"]
-    ultimo_dia_mes = _ultimo_dia_mes(primeiro_dia_mes)
-    agendas_abertas_grupos = _agendas_abertas(hoje, primeiro_dia_mes, ultimo_dia_mes, unidades_ids)
+    fim_mes = ultimo_dia_mes(primeiro_dia_mes)
+    agendas_abertas_grupos = _agendas_abertas(hoje, primeiro_dia_mes, fim_mes, unidades_ids)
 
     context = {
         "view": view,
@@ -452,7 +449,7 @@ def cadastro_agenda(request, agenda_id=None):
     unidades_qs = Unidade.objects.all()
     salas_qs = Sala.objects.select_related("unidade").all()
     medicos_qs = Medico.objects.prefetch_related("unidades")
-    procedimentos_qs = Procedimento.objects.select_related("unidade").all()
+    procedimentos_qs = Procedimento.objects.select_related("unidade").order_by("nome_procedimento")
     if unidades_ids is not None:
         unidades_qs = unidades_qs.filter(id__in=unidades_ids)
         salas_qs = salas_qs.filter(unidade_id__in=unidades_ids)
@@ -475,6 +472,7 @@ def cadastro_agenda(request, agenda_id=None):
         "pode_excluir": agenda is not None,
         "recorrencia": agenda.recorrencia if agenda else None,
         "datas_recorrencia": ",".join(d.isoformat() for d in datas_recorrencia),
+        "travada": agenda is not None and repasse.agenda_travada(agenda),
     }
     return render(request, "agendas/partials/_cadastro_agenda.html", context)
 
@@ -482,6 +480,10 @@ def cadastro_agenda(request, agenda_id=None):
 @transaction.atomic
 def _salvar_agenda(request, agenda, unidades_ids):
     post = request.POST
+
+    if agenda and repasse.agenda_travada(agenda):
+        messages.error(request, f"A agenda #{agenda.id} já está em um repasse fechado e não pode ser alterada.")
+        return redirect("agendas:home")
 
     sala_id = post.get("sala")
     sala = get_object_or_404(Sala, pk=sala_id) if sala_id else None
@@ -520,11 +522,24 @@ def _salvar_agenda(request, agenda, unidades_ids):
     horario_inicio = post.get("horario_inicio") or "08:00"
     horario_fim = post.get("horario_fim") or "12:00"
     concierge = post.get("concierge", "")
-    tipo_calculo_pagamento = post.get("tipo_calculo_pagamento") == "procedimento"
 
     procedimento_ids = post.getlist("procedimento[]")
     esperancas = post.getlist("esperanca_pacientes[]")
     reais = post.getlist("real_pacientes[]")
+
+    # Procedimentos exclusivos só podem ser usados pelo médico a que pertencem.
+    medicos_da_agenda = {str(m) for m in (medico_inicial_id, medico_atendido_id) if m}
+    exclusivos = Procedimento.objects.filter(
+        id__in=[p for p in procedimento_ids if p], medico_exclusivo__isnull=False
+    ).select_related("medico_exclusivo")
+    for proc in exclusivos:
+        if str(proc.medico_exclusivo_id) not in medicos_da_agenda:
+            messages.error(
+                request,
+                f"O procedimento \"{proc.nome_procedimento}\" é exclusivo de {proc.medico_exclusivo.nome}. "
+                "A agenda não foi salva.",
+            )
+            return redirect("agendas:home")
 
     antes = historico.snapshot(agenda) if agenda else None
     alteracoes_extras = []
@@ -567,11 +582,11 @@ def _salvar_agenda(request, agenda, unidades_ids):
             SalaHorario.objects.get_or_create(sala=sala, horario=horario)
 
         agenda.concierge = concierge
-        agenda.tipo_calculo_pagamento = tipo_calculo_pagamento
         agenda.confirmacao_medico = confirmacao_medico
         agenda.status_medico_inicial = status_medico_inicial
         agenda.medico_inicial_id = medico_inicial_id
         agenda.medico_atendido_id = medico_atendido_id
+        _aplicar_realizacao(agenda, post, request.user)
         agenda.save()
 
         agenda.procedimentoagenda_set.all().delete()
@@ -592,6 +607,22 @@ def _salvar_agenda(request, agenda, unidades_ids):
 
     _registrar_salvamento(request.user, antes, agendas_salvas, recorrencia, alteracoes_extras)
     return redirect("agendas:home")
+
+
+def _aplicar_realizacao(agenda, post, usuario):
+    """Campos de realização (chegada/saída do médico). Só agendas realizadas entram no repasse."""
+    if "realizacao" not in post:
+        return
+    realizada = post.get("realizada") == "on"
+    if realizada and not agenda.realizada:
+        agenda.realizada_em = timezone.now()
+        agenda.realizada_por = usuario
+    elif not realizada:
+        agenda.realizada_em = None
+        agenda.realizada_por = None
+    agenda.realizada = realizada
+    agenda.hora_chegada = post.get("hora_chegada") or None
+    agenda.hora_saida = post.get("hora_saida") or None
 
 
 def _registrar_salvamento(usuario, antes, agendas_salvas, recorrencia, alteracoes_extras):
@@ -661,14 +692,20 @@ def _editar_pacientes_reais(request, agenda_id):
     )
     if not _agenda_permitida(agenda, unidades_ids):
         raise PermissionDenied
+    travada = repasse.agenda_travada(agenda)
 
     if request.method == "POST":
+        if travada:
+            messages.error(request, f"A agenda #{agenda.id} já está em um repasse fechado e não pode ser alterada.")
+            return redirect("agendas:home")
         antes = historico.snapshot(agenda)
         pa_ids = request.POST.getlist("procedimento_agenda_id[]")
         reais = request.POST.getlist("real_pacientes[]")
         with transaction.atomic():
             for pa_id, real in zip(pa_ids, reais):
                 ProcedimentoAgenda.objects.filter(pk=pa_id, agenda=agenda).update(real_pacientes=real or None)
+            _aplicar_realizacao(agenda, request.POST, request.user)
+            agenda.save()
             alteracoes = historico.diferencas(antes, historico.snapshot(historico.carregar(agenda.id)))
             historico.registrar(request.user, LogAgenda.Acao.MODIFICACAO, agenda, alteracoes)
         return redirect("agendas:home")
@@ -679,6 +716,7 @@ def _editar_pacientes_reais(request, agenda_id):
         "sala": agenda.sala,
         "unidade": agenda.unidade,
         "procedimentos_agenda": procedimentos_agenda,
+        "travada": travada,
     }
     return render(request, "agendas/partials/_editar_pacientes_reais.html", context)
 
@@ -780,6 +818,7 @@ def cadastros_home(request):
         "cadastro_ativo": None,
         "total_medicos": Medico.objects.count(),
         "total_concierges": Usuario.objects.filter(cargo=Cargo.CONCIERGE).count(),
+        "total_procedimentos": Procedimento.objects.count(),
     }
     return render(request, "agendas/cadastros_home.html", context)
 
@@ -899,3 +938,183 @@ def concierge_excluir(request, usuario_id):
     if request.method == "POST":
         concierge.delete()
     return redirect("agendas:concierges_lista")
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def procedimentos_lista(request):
+    procedimentos_qs = Procedimento.objects.select_related("unidade", "medico_exclusivo").order_by(
+        "unidade__nome", "nome_procedimento"
+    )
+    context = {"procedimentos": procedimentos_qs, "em_area_cadastros": True, "cadastro_ativo": "procedimentos"}
+    return render(request, "agendas/procedimentos_lista.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def procedimento_form(request, procedimento_id=None):
+    procedimento = get_object_or_404(Procedimento, pk=procedimento_id) if procedimento_id else None
+
+    if request.method == "POST":
+        post = request.POST
+        if procedimento is None:
+            procedimento = Procedimento()
+        procedimento.nome_procedimento = post.get("nome_procedimento", "").strip()
+        procedimento.especialidade = post.get("especialidade", "").strip()
+        procedimento.unidade_id = post.get("unidade")
+        procedimento.valor_base = Decimal(post.get("valor_base") or "0")
+        procedimento.tipo_calculo = post.get("tipo_calculo") or Procedimento.TipoCalculo.PROCEDIMENTO
+        procedimento.prazo_repasse_meses = int(post.get("prazo_repasse_meses") or 1)
+        procedimento.medico_exclusivo_id = post.get("medico_exclusivo") or None
+        procedimento.save()
+        return redirect("agendas:procedimentos_lista")
+
+    context = {
+        "procedimento": procedimento,
+        "unidades": Unidade.objects.all(),
+        "medicos": Medico.objects.order_by("nome"),
+        "tipos_calculo": Procedimento.TipoCalculo.choices,
+        "prazos": Procedimento.PRAZO_REPASSE_CHOICES,
+    }
+    return render(request, "agendas/partials/_procedimento_form.html", context)
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def procedimento_excluir(request, procedimento_id):
+    procedimento = get_object_or_404(Procedimento, pk=procedimento_id)
+    if request.method == "POST":
+        if procedimento.agendas.exists():
+            messages.error(request, "Este procedimento já foi usado em agendas e não pode ser excluído.")
+        else:
+            procedimento.delete()
+    return redirect("agendas:procedimentos_lista")
+
+
+def _competencia_param(request):
+    """Mês de pagamento (?mes=AAAA-MM); padrão: mês seguinte."""
+    return parse_mes(request.GET.get("mes") or request.POST.get("mes"), somar_meses(datetime.date.today(), 1))
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def repasse_mes(request):
+    competencia = _competencia_param(request)
+    linhas = repasse.resumo_por_medico(competencia)
+    fechamentos = [l["fechamento"] for l in linhas if l["fechamento"]]
+    Status = FechamentoRepasse.Status
+    context = {
+        "em_area_repasse": True,
+        "competencia": competencia,
+        "anterior": somar_meses(competencia, -1),
+        "proximo": somar_meses(competencia, 1),
+        "linhas": linhas,
+        "total": sum((l["total"] for l in linhas), Decimal(0)),
+        "total_aberto": sum((l["em_aberto"] for l in linhas), Decimal(0)),
+        "total_fechado": sum((f.valor_total for f in fechamentos if f.status == Status.FECHADO), Decimal(0)),
+        "total_pago": sum((f.valor_total for f in fechamentos if f.status == Status.PAGO), Decimal(0)),
+        "pendencias": repasse.pendencias(competencia),
+        "previsoes": [
+            {"competencia": mes, "total": repasse.previsao(mes)}
+            for mes in (somar_meses(competencia, i) for i in range(4))
+        ],
+    }
+    return render(request, "agendas/repasse.html", context)
+
+
+def _itens_detalhe(medico, competencia):
+    """Itens congelados (se o mês já foi fechado) ou calculados na hora."""
+    fechamento = FechamentoRepasse.objects.filter(medico=medico, competencia=competencia).first()
+    if not fechamento:
+        itens = [
+            dict(linha, agenda_numero=linha["agenda"].id)
+            for linha in repasse.itens_do_mes(competencia, medico_id=medico.id)
+        ]
+        return None, itens
+
+    itens = [
+        {
+            "agenda_numero": i.agenda_numero,
+            "data": i.data_atendimento,
+            "unidade": i.unidade_nome,
+            "procedimento": i.procedimento_nome,
+            "tipo_calculo": i.get_tipo_calculo_display(),
+            "prazo": i.prazo_repasse_meses,
+            "valor_base": i.valor_base,
+            "quantidade": i.quantidade,
+            "valor": i.valor,
+            "fora_do_prazo": False,
+        }
+        for i in fechamento.itens.all()
+    ]
+    return fechamento, itens
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def repasse_detalhe(request, medico_id):
+    medico = get_object_or_404(Medico.objects.select_related("conta_bancaria"), pk=medico_id)
+    competencia = _competencia_param(request)
+    fechamento, itens = _itens_detalhe(medico, competencia)
+
+    if request.GET.get("formato") == "csv":
+        return _repasse_csv(medico, competencia, itens)
+
+    context = {
+        "em_area_repasse": True,
+        "medico": medico,
+        "competencia": competencia,
+        "fechamento": fechamento,
+        "itens": itens,
+        "total": sum((i["valor"] for i in itens), Decimal(0)),
+    }
+    return render(request, "agendas/repasse_detalhe.html", context)
+
+
+def _repasse_csv(medico, competencia, itens):
+    resposta = HttpResponse(content_type="text/csv; charset=utf-8")
+    resposta["Content-Disposition"] = f'attachment; filename="repasse_{competencia:%Y-%m}_medico_{medico.id}.csv"'
+    resposta.write("﻿")  # BOM para o Excel abrir os acentos corretamente
+    escritor = csv.writer(resposta, delimiter=";")
+    escritor.writerow(
+        ["Agenda", "Data", "Unidade", "Procedimento", "Cálculo", "Prazo (meses)", "Valor base", "Quantidade", "Valor"]
+    )
+    for i in itens:
+        escritor.writerow(
+            [
+                i["agenda_numero"],
+                f"{i['data']:%d/%m/%Y}",
+                i["unidade"],
+                i["procedimento"],
+                i["tipo_calculo"],
+                i["prazo"],
+                str(i["valor_base"]).replace(".", ","),
+                i["quantidade"],
+                str(i["valor"]).replace(".", ","),
+            ]
+        )
+    return resposta
+
+
+@cargo_required(Cargo.ADMINISTRADOR)
+def repasse_acao(request, medico_id):
+    """Fechar, marcar como pago ou reabrir o repasse de um médico no mês."""
+    medico = get_object_or_404(Medico, pk=medico_id)
+    competencia = _competencia_param(request)
+    destino = request.POST.get("voltar", "")
+    if not url_has_allowed_host_and_scheme(destino, allowed_hosts={request.get_host()}):
+        destino = f"{reverse('agendas:repasse')}?mes={competencia:%Y-%m}"
+    if request.method != "POST":
+        return redirect(destino)
+
+    acao = request.POST.get("acao")
+    try:
+        if acao == "fechar":
+            repasse.fechar(medico, competencia, request.user)
+            messages.success(request, f"Repasse de {medico.nome} fechado.")
+        elif acao in ("pagar", "reabrir"):
+            fechamento = get_object_or_404(FechamentoRepasse, medico=medico, competencia=competencia)
+            if acao == "pagar":
+                repasse.marcar_pago(fechamento, request.user, request.POST.get("observacao", "").strip())
+                messages.success(request, f"Repasse de {medico.nome} marcado como pago.")
+            else:
+                repasse.reabrir(fechamento)
+                messages.success(request, f"Fechamento de {medico.nome} reaberto.")
+    except ValueError as erro:
+        messages.error(request, str(erro))
+    return redirect(destino)

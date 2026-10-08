@@ -16,8 +16,17 @@ urlpatterns = [
     path("medicos/novo/", views.medico_form, name="medico_novo"),
     path("medicos/<int:medico_id>/editar/", views.medico_form, name="medico_editar"),
     path("medicos/<int:medico_id>/excluir/", views.medico_excluir, name="medico_excluir"),
+    path("cadastros/procedimentos/", views.procedimentos_lista, name="procedimentos_lista"),
+    path("cadastros/procedimentos/novo/", views.procedimento_form, name="procedimento_novo"),
+    path("cadastros/procedimentos/<int:procedimento_id>/editar/", views.procedimento_form, name="procedimento_editar"),
+    path(
+        "cadastros/procedimentos/<int:procedimento_id>/excluir/", views.procedimento_excluir, name="procedimento_excluir"
+    ),
     path("cadastros/concierges/", views.concierges_lista, name="concierges_lista"),
     path("cadastros/concierges/novo/", views.concierge_form, name="concierge_novo"),
     path("cadastros/concierges/<int:usuario_id>/editar/", views.concierge_form, name="concierge_editar"),
     path("cadastros/concierges/<int:usuario_id>/excluir/", views.concierge_excluir, name="concierge_excluir"),
+    path("repasse/", views.repasse_mes, name="repasse"),
+    path("repasse/medico/<int:medico_id>/", views.repasse_detalhe, name="repasse_detalhe"),
+    path("repasse/medico/<int:medico_id>/acao/", views.repasse_acao, name="repasse_acao"),
 ]

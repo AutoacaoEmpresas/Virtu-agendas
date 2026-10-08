@@ -1,0 +1,158 @@
+{% extends "agendas/base.html" %}
+
+{% block title %}Repasse · Virtù{% endblock %}
+
+{% block sidebar_conteudo %}
+<div class="px-2 small">
+    <h6 class="sidebar-title">Repasse médico</h6>
+    <p class="text-muted">
+        Valor a pagar a cada médico no mês. Entram só agendas <strong>realizadas</strong>, pagas ao médico que atendeu.
+        Cada procedimento é pago no mês seguinte ao atendimento ou 3 meses depois, conforme o cadastro.
+    </p>
+
+    <h6 class="sidebar-title mt-3">Previsão</h6>
+    <ul class="list-unstyled repasse-previsao">
+        {% for p in previsoes %}
+        <li>
+            <a href="?mes={{ p.competencia|date:'Y-m' }}" class="{% if p.competencia == competencia %}fw-semibold{% endif %}">{{ p.competencia|date:"F/Y" }}</a>
+            <span>R$ {{ p.total|floatformat:"2g" }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+    <p class="text-muted">A previsão usa os pacientes esperados nas agendas ainda não realizadas.</p>
+</div>
+{% endblock %}
+
+{% block topbar %}
+<div class="d-flex justify-content-between align-items-center w-100 gap-3 flex-wrap">
+    <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-sm btn-nav" href="?mes={{ anterior|date:'Y-m' }}">&laquo;</a>
+        <h4 class="mb-0">Repasse de {{ competencia|date:"F/Y" }}</h4>
+        <a class="btn btn-sm btn-nav" href="?mes={{ proximo|date:'Y-m' }}">&raquo;</a>
+    </div>
+    <form method="get" class="d-flex gap-2 align-items-center">
+        <input type="month" name="mes" value="{{ competencia|date:'Y-m' }}" class="form-control form-control-sm" onchange="this.form.submit()">
+        <a class="btn btn-sm btn-outline-secondary" href="{% url 'agendas:repasse' %}">Mês seguinte</a>
+    </form>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="repasse-cards">
+    <div class="repasse-card">
+        <div class="text-muted small">Total do mês</div>
+        <div class="repasse-card-valor">R$ {{ total|floatformat:"2g" }}</div>
+    </div>
+    <div class="repasse-card">
+        <div class="text-muted small">Em aberto (calculado)</div>
+        <div class="repasse-card-valor">R$ {{ total_aberto|floatformat:"2g" }}</div>
+    </div>
+    <div class="repasse-card">
+        <div class="text-muted small">Fechado, a pagar</div>
+        <div class="repasse-card-valor">R$ {{ total_fechado|floatformat:"2g" }}</div>
+    </div>
+    <div class="repasse-card">
+        <div class="text-muted small">Pago</div>
+        <div class="repasse-card-valor text-success">R$ {{ total_pago|floatformat:"2g" }}</div>
+    </div>
+    <div class="repasse-card {% if pendencias %}repasse-card-alerta{% endif %}">
+        <div class="text-muted small">Agendas não realizadas</div>
+        <div class="repasse-card-valor">{{ pendencias|length }}</div>
+    </div>
+</div>
+
+<table class="table table-sm bg-white align-middle">
+    <thead>
+        <tr>
+            <th>Médico</th>
+            <th>PIX / Conta</th>
+            <th class="text-end">Mês seguinte</th>
+            <th class="text-end">Em 3 meses</th>
+            <th class="text-end">Total</th>
+            <th>Status</th>
+            <th class="text-end" style="width:260px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for linha in linhas %}
+        {% with medico=linha.medico fechamento=linha.fechamento %}
+        <tr>
+            <td>
+                <a href="{% url 'agendas:repasse_detalhe' medico.id %}?mes={{ competencia|date:'Y-m' }}" class="fw-semibold">{{ medico.nome }}</a>
+                {% if linha.fora_do_prazo %}
+                <div><span class="badge text-bg-warning" title="Atendimentos de meses já fechados, lançados depois">{{ linha.fora_do_prazo }} fora do prazo</span></div>
+                {% endif %}
+            </td>
+            <td class="small">
+                {% if medico.conta_bancaria %}
+                <div>{{ medico.conta_bancaria.get_tipo_pix_display }}: {{ medico.conta_bancaria.chave_pix }}</div>
+                <div class="text-muted">{{ medico.conta_bancaria.nome_banco }} · Ag {{ medico.conta_bancaria.agencia }} · CC {{ medico.conta_bancaria.numero_conta }}</div>
+                {% else %}
+                <span class="text-danger">Sem conta cadastrada</span>
+                {% endif %}
+            </td>
+            <td class="text-end">R$ {{ linha.prazo_1|floatformat:"2g" }}</td>
+            <td class="text-end">R$ {{ linha.prazo_3|floatformat:"2g" }}</td>
+            <td class="text-end fw-semibold">R$ {{ linha.total|floatformat:"2g" }}</td>
+            <td>
+                {% if not fechamento %}
+                <span class="badge text-bg-secondary">Em aberto</span>
+                {% elif fechamento.status == "pago" %}
+                <span class="badge text-bg-success">Pago</span>
+                <div class="text-muted small">{{ fechamento.pago_em|date:"d/m/Y" }}</div>
+                {% else %}
+                <span class="badge text-bg-primary">Fechado</span>
+                {% endif %}
+            </td>
+            <td class="text-end">
+                <form method="post" action="{% url 'agendas:repasse_acao' medico.id %}" class="d-inline-flex gap-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="mes" value="{{ competencia|date:'Y-m' }}">
+                    {% if not fechamento %}
+                    <button type="submit" name="acao" value="fechar" class="btn btn-sm btn-outline-primary"
+                            onclick="return confirm('Fechar o repasse de {{ medico.nome|escapejs }}? Os valores serão congelados e as agendas ficarão travadas.');">Fechar</button>
+                    {% elif fechamento.status == "fechado" %}
+                    <button type="submit" name="acao" value="reabrir" class="btn btn-sm btn-outline-secondary"
+                            onclick="return confirm('Reabrir o fechamento? Os valores voltam a ser recalculados.');">Reabrir</button>
+                    <button type="submit" name="acao" value="pagar" class="btn btn-sm btn-success"
+                            onclick="return confirm('Marcar o repasse de {{ medico.nome|escapejs }} como pago?');">Marcar pago</button>
+                    {% endif %}
+                </form>
+            </td>
+        </tr>
+        {% endwith %}
+        {% empty %}
+        <tr><td colspan="7" class="text-muted text-center py-4">Nenhum repasse para este mês.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% if pendencias %}
+<h6 class="mt-4">Agendas ainda não realizadas que entram neste mês</h6>
+<p class="text-muted small">Enquanto não forem marcadas como realizadas, não entram no valor acima.</p>
+<table class="table table-sm bg-white align-middle">
+    <thead>
+        <tr>
+            <th style="width:90px;">Agenda</th>
+            <th style="width:120px;">Data</th>
+            <th>Médico</th>
+            <th>Unidade</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for agenda in pendencias %}
+        <tr>
+            <td>#{{ agenda.id }}</td>
+            <td>{{ agenda.horario.data|date:"d/m/Y" }}</td>
+            <td>{{ agenda.medico_atendido.nome }}</td>
+            <td>{{ agenda.unidade.nome|default:"-" }}</td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary abrir-cadastro" data-agenda-id="{{ agenda.id }}">Abrir agenda</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

@@ -5,6 +5,11 @@
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
 </div>
 <div class="modal-body">
+    {% if travada %}
+    <div class="alert alert-warning py-2 small">
+        Esta agenda já está em um repasse fechado. Para alterá-la, reabra o fechamento do médico na tela de Repasse.
+    </div>
+    {% endif %}
     <div class="row g-3">
         <div class="col-md-6">
             <label class="form-label">Unidade</label>
@@ -157,7 +162,7 @@
                             <select class="form-select form-select-sm" name="procedimento[]">
                                 <option value="">Selecione...</option>
                                 {% for p in procedimentos %}
-                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}"
+                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}" data-tipo-calculo="{{ p.tipo_calculo }}" data-medico-exclusivo="{{ p.medico_exclusivo_id|default_if_none:'' }}"
                                     {% if pa.procedimento_id == p.id %}selected{% endif %}>{{ p.nome_procedimento }}</option>
                                 {% endfor %}
                             </select>
@@ -172,7 +177,7 @@
                             <select class="form-select form-select-sm" name="procedimento[]">
                                 <option value="">Selecione...</option>
                                 {% for p in procedimentos %}
-                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}">{{ p.nome_procedimento }}</option>
+                                <option value="{{ p.id }}" data-unidade="{{ p.unidade_id }}" data-valor="{{ p.valor_base }}" data-tipo-calculo="{{ p.tipo_calculo }}" data-medico-exclusivo="{{ p.medico_exclusivo_id|default_if_none:'' }}">{{ p.nome_procedimento }}</option>
                                 {% endfor %}
                             </select>
                         </td>
@@ -184,6 +189,12 @@
                 </tbody>
             </table>
         </div>
+
+        {% if agenda %}
+        <div class="col-12">
+            {% include "agendas/partials/_realizacao.html" %}
+        </div>
+        {% endif %}
     </div>
 </div>
 <div class="modal-footer justify-content-between">
@@ -195,15 +206,6 @@
         <div>
             <span class="text-muted small">Valor Real:</span>
             <strong id="valor-real">R$ 0,00</strong>
-        </div>
-        <div class="btn-group" role="group">
-            <input type="radio" class="btn-check" name="tipo_calculo_pagamento" id="calc_procedimento" value="procedimento"
-                {% if agenda.tipo_calculo_pagamento or not agenda %}checked{% endif %}>
-            <label class="btn btn-outline-secondary btn-sm" for="calc_procedimento">Por Procedimento</label>
-
-            <input type="radio" class="btn-check" name="tipo_calculo_pagamento" id="calc_paciente" value="paciente"
-                {% if agenda and not agenda.tipo_calculo_pagamento %}checked{% endif %}>
-            <label class="btn btn-outline-secondary btn-sm" for="calc_paciente">Por Paciente</label>
         </div>
     </div>
     <div class="d-flex gap-2">
@@ -226,7 +228,7 @@
                 onclick="return confirm('Excluir esta agenda? Essa ação não pode ser desfeita.');">Excluir</button>
         {% endif %}
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
-        <button type="submit" class="btn btn-primary">Salvar</button>
+        <button type="submit" class="btn btn-primary" {% if travada %}disabled{% endif %}>Salvar</button>
     </div>
 </div>
 </form>

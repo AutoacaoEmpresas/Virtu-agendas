@@ -44,7 +44,9 @@ def snapshot(agenda):
         "Substituto confirmado": ("Sim" if agenda.confirmacao_medico else "Não") if substituto else "-",
         "Status da agenda": STATUS_AGENDA_LABELS[agenda.status],
         "Concierge": agenda.concierge or "-",
-        "Cálculo de pagamento": "Por procedimento" if agenda.tipo_calculo_pagamento else "Por paciente",
+        "Realizada": "Sim" if agenda.realizada else "Não",
+        "Chegada do médico": f"{agenda.hora_chegada:%H:%M}" if agenda.hora_chegada else "-",
+        "Saída do médico": f"{agenda.hora_saida:%H:%M}" if agenda.hora_saida else "-",
         "Procedimentos": procedimentos or "-",
     }
 

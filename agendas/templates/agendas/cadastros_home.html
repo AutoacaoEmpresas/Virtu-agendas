@@ -14,10 +14,10 @@
         <h5>Médicos</h5>
         <p class="text-muted small mb-0">{{ total_medicos }} cadastrado{{ total_medicos|pluralize }}</p>
     </a>
-    <div class="cadastro-card disabled">
+    <a href="{% url 'agendas:procedimentos_lista' %}" class="cadastro-card">
         <h5>Procedimentos</h5>
-        <p class="text-muted small mb-0">Em breve</p>
-    </div>
+        <p class="text-muted small mb-0">{{ total_procedimentos }} cadastrado{{ total_procedimentos|pluralize }}</p>
+    </a>
     <div class="cadastro-card disabled">
         <h5>Unidades e Salas</h5>
         <p class="text-muted small mb-0">Em breve</p>

@@ -1,0 +1,61 @@
+{% extends "agendas/base.html" %}
+
+{% block sidebar_conteudo %}
+{% include "agendas/partials/_sidebar_cadastros.html" %}
+{% endblock %}
+
+{% block topbar %}
+<div class="d-flex justify-content-between align-items-center w-100">
+    <h4 class="mb-0">Procedimentos</h4>
+    <button type="button" class="btn btn-primary btn-sm abrir-procedimento" data-procedimento-id="">+ Novo procedimento</button>
+</div>
+{% endblock %}
+
+{% block content %}
+<table class="table table-sm table-hover bg-white align-middle">
+    <thead>
+        <tr>
+            <th>Nome</th>
+            <th>Unidade</th>
+            <th class="text-end">Valor base</th>
+            <th>Cálculo</th>
+            <th>Repasse</th>
+            <th>Exclusivo de</th>
+            <th style="width:140px;"></th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in procedimentos %}
+        <tr>
+            <td>{{ p.nome_procedimento }}</td>
+            <td>{{ p.unidade.nome }}</td>
+            <td class="text-end">R$ {{ p.valor_base|floatformat:"2g" }}</td>
+            <td>{{ p.get_tipo_calculo_display }}</td>
+            <td>{{ p.get_prazo_repasse_meses_display }}</td>
+            <td>{{ p.medico_exclusivo.nome|default:"-" }}</td>
+            <td class="text-end">
+                <button type="button" class="btn btn-sm btn-outline-secondary abrir-procedimento" data-procedimento-id="{{ p.id }}">Editar</button>
+                <button type="button" class="btn btn-sm btn-outline-danger btn-excluir-procedimento" data-procedimento-id="{{ p.id }}">Excluir</button>
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="text-muted text-center py-4">Nenhum procedimento cadastrado.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Modal: Cadastro de Procedimento -->
+<div class="modal fade" id="modalProcedimento" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content" id="modalProcedimentoContent">
+            <div class="modal-body text-center p-5 text-muted">Carregando...</div>
+        </div>
+    </div>
+</div>
+
+{% for p in procedimentos %}
+<form id="form-excluir-procedimento-{{ p.id }}" method="post" action="{% url 'agendas:procedimento_excluir' p.id %}">
+    {% csrf_token %}
+</form>
+{% endfor %}
+{% endblock %}

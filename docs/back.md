@@ -56,7 +56,11 @@ Unidade ──< Sala ──< SalaHorario >── Horario ── Agenda >── P
 - **Sala**: pertence a uma unidade, tem especialidade.
 - **ContaBancaria**: dados bancários/PIX de um médico.
 - **Medico**: N:N com `Unidade` (via `UnidadeMedico`), 1 conta bancária.
-- **Procedimento**: pertence a uma unidade, tem `valor_base`.
+- **Procedimento**: pertence a uma unidade, tem `valor_base`, `tipo_calculo`
+  ("por procedimento" = valor base cheio uma vez; "por paciente" = valor base
+  × pacientes), `prazo_repasse_meses` (1 = paga no mês seguinte ao
+  atendimento, 3 = paga 3 meses depois) e `medico_exclusivo` opcional
+  (procedimentos especiais para exceções de um médico).
 - **Horario**: data + faixa de horário, N:N com `Sala` (via `SalaHorario`,
   hoje sempre 1 sala por horário na prática); `turno` (Manhã/Tarde/Noite) é
   calculado a partir do horário de início.
@@ -64,13 +68,34 @@ Unidade ──< Sala ──< SalaHorario >── Horario ── Agenda >── P
   `medico_inicial` e `medico_atendido` (podem divergir quando há
   substituto), N:N com `Procedimento` via `ProcedimentoAgenda`
   (`esperanca_pacientes` / `real_pacientes` por procedimento).
-  - `tipo_calculo_pagamento` (bool): `True` = "Por Procedimento" (soma
-    `valor_base` cheio de cada procedimento), `False` = "Por Paciente"
-    (multiplica `valor_base` pela quantidade de pacientes).
+  - Realização (`realizada`, `hora_chegada`, `hora_saida`, `realizada_em`,
+    `realizada_por`): preenchida pela concierge; só agendas realizadas
+    entram no repasse. (O antigo `tipo_calculo_pagamento` da agenda foi
+    movido para `Procedimento.tipo_calculo` na migration `0006`.)
   - `valor_previsto` / `valor_real` são `@property` calculadas a partir dos
     procedimentos — nunca persistidas diretamente (adicionado no commit
     `ed49d16`, que removeu o campo antigo `valor_real` do banco via
     migration `0002_remove_agenda_valor_real`).
+
+- **FechamentoRepasse** / **ItemRepasse**: fechamento mensal do repasse de
+  um médico (`competencia` = dia 1 do mês de pagamento; status fechado →
+  pago). Os itens congelam valor base, quantidade e valor no momento do
+  fechamento.
+
+## Repasse médico (`agendas/repasse.py`, tela `/repasse/`)
+
+- O valor de cada `ProcedimentoAgenda` de uma agenda **realizada** vai para o
+  `medico_atendido` e é pago no **mês do atendimento + prazo do
+  procedimento** (ex.: atendimento em out/26 com prazo 3 → pago em jan/27).
+- A tela abre no mês seguinte e mostra, por médico: valores de prazo 1 e 3,
+  total, status (em aberto / fechado / pago) e PIX. Também lista agendas
+  ainda não realizadas que afetam o mês e uma previsão dos próximos meses
+  (usa pacientes esperados nas agendas não realizadas).
+- **Fechar** congela os itens; agendas com itens fechados ficam travadas
+  para edição. **Reabrir** só antes de pagar. **Marcar pago** grava data e
+  usuário. Detalhe por médico com exportação CSV.
+- Atendimento lançado depois que seu mês já foi fechado entra no próximo
+  mês ainda não fechado do médico, marcado como "fora do prazo".
 
 ## Telas e fluxo (`agendas/views.py` + templates)
 
@@ -98,15 +123,17 @@ Unidade ──< Sala ──< SalaHorario >── Horario ── Agenda >── P
      dentro de uma transação atômica).
    - Linhas dinâmicas de procedimento (adicionar/remover), com
      `esperanca_pacientes` e `real_pacientes` por linha.
-   - Tipo de cálculo de pagamento (por procedimento / por paciente),
-     refletido nos valores previsto/real calculados no model.
+   - Valores previsto/real calculados conforme o tipo de cálculo de cada
+     procedimento; na edição, bloco de realização (realizada, chegada e
+     saída do médico).
    - Botões "Exportar relatório" e "Configurações" na tela inicial são só
      de fachada, sem funcionalidade.
 
 ## Dados de teste
 
 `python manage.py seed_data` popula unidades, salas, contas bancárias,
-médicos, procedimentos e ~2 semanas de agendas de forma determinística
+médicos, procedimentos e agendas dos últimos 3 meses (a maioria já
+realizada, para alimentar o repasse) até 2 semanas à frente de forma determinística
 (`random.seed(42)`). Pode ser rodado de novo a qualquer momento (apaga e
 recria tudo, a menos que use `--sem-limpar`).
 
@@ -120,7 +147,7 @@ sugeridos.) Pontos ainda não resolvidos no projeto:
 - Sem validação real de formulário (`_salvar_agenda` confia no
   `request.POST` bruto); candidato natural para migrar para
   `django.forms.ModelForm`.
-- Sem testes automatizados (`agendas/tests.py` está vazio).
+- Testes automatizados só cobrem o repasse (`agendas/tests.py`).
 - Recorrência hoje só suporta frequência semanal (não diária/mensal).
 - `admin.py` só tem registro básico dos models, sem `list_display`/
   `search_fields` customizados.

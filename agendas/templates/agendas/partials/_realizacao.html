@@ -1,0 +1,20 @@
+<hr>
+<input type="hidden" name="realizacao" value="1">
+<div class="row g-3 align-items-end">
+    <div class="col-md-4">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" role="switch" name="realizada" id="id_realizada"
+                {% if agenda.realizada %}checked{% endif %}>
+            <label class="form-check-label" for="id_realizada">Agenda realizada</label>
+        </div>
+        <div class="form-text">Só agendas realizadas entram no repasse do médico.</div>
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Chegada do médico</label>
+        <input type="time" class="form-control form-control-sm" name="hora_chegada" value="{{ agenda.hora_chegada|time:'H:i' }}">
+    </div>
+    <div class="col-md-4">
+        <label class="form-label">Saída do médico</label>
+        <input type="time" class="form-control form-control-sm" name="hora_saida" value="{{ agenda.hora_saida|time:'H:i' }}">
+    </div>
+</div>

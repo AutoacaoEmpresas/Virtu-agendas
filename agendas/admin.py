@@ -3,7 +3,9 @@ from django.contrib import admin
 from .models import (
     Agenda,
     ContaBancaria,
+    FechamentoRepasse,
     Horario,
+    ItemRepasse,
     LogAgenda,
     Medico,
     Procedimento,
@@ -43,3 +45,21 @@ class LogAgendaAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class ItemRepasseInline(admin.TabularInline):
+    model = ItemRepasse
+    extra = 0
+    can_delete = False
+    readonly_fields = [f.name for f in ItemRepasse._meta.fields]
+
+    def has_add_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(FechamentoRepasse)
+class FechamentoRepasseAdmin(admin.ModelAdmin):
+    list_display = ("competencia", "medico", "status", "valor_total", "pago_em")
+    list_filter = ("status", "competencia")
+    search_fields = ("medico__nome",)
+    inlines = [ItemRepasseInline]

@@ -1,0 +1,107 @@
+{% extends "agendas/base.html" %}
+
+{% block title %}Repasse {{ medico.nome }} · Virtù{% endblock %}
+
+{% block sidebar_conteudo %}
+<div class="px-2 small">
+    <h6 class="sidebar-title">{{ medico.nome }}</h6>
+    <p class="text-muted mb-2">{{ medico.especialidade|default:"" }}</p>
+    {% if medico.conta_bancaria %}
+    <div><strong>PIX ({{ medico.conta_bancaria.get_tipo_pix_display }}):</strong> {{ medico.conta_bancaria.chave_pix }}</div>
+    <div>{{ medico.conta_bancaria.nome_banco }}</div>
+    <div>Agência {{ medico.conta_bancaria.agencia }} · Conta {{ medico.conta_bancaria.numero_conta }}</div>
+    {% if medico.conta_bancaria.cnpj %}<div>CNPJ {{ medico.conta_bancaria.cnpj }}</div>{% endif %}
+    {% else %}
+    <div class="text-danger">Sem conta bancária cadastrada.</div>
+    {% endif %}
+
+    {% if fechamento %}
+    <h6 class="sidebar-title mt-3">Fechamento</h6>
+    <div>Fechado em {{ fechamento.fechado_em|date:"d/m/Y H:i" }}{% if fechamento.fechado_por %} por {{ fechamento.fechado_por.get_full_name|default:fechamento.fechado_por.username }}{% endif %}</div>
+    {% if fechamento.status == "pago" %}
+    <div>Pago em {{ fechamento.pago_em|date:"d/m/Y H:i" }}{% if fechamento.pago_por %} por {{ fechamento.pago_por.get_full_name|default:fechamento.pago_por.username }}{% endif %}</div>
+    {% endif %}
+    {% if fechamento.observacao %}<div class="mt-2 text-muted">{{ fechamento.observacao|linebreaksbr }}</div>{% endif %}
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block topbar %}
+<div class="d-flex justify-content-between align-items-center w-100 gap-3 flex-wrap">
+    <div class="d-flex align-items-center gap-2">
+        <a class="btn btn-sm btn-nav" href="{% url 'agendas:repasse' %}?mes={{ competencia|date:'Y-m' }}">&larr; Voltar</a>
+        <h4 class="mb-0">{{ medico.nome }} · {{ competencia|date:"F/Y" }}</h4>
+        {% if not fechamento %}
+        <span class="badge text-bg-secondary">Em aberto</span>
+        {% elif fechamento.status == "pago" %}
+        <span class="badge text-bg-success">Pago</span>
+        {% else %}
+        <span class="badge text-bg-primary">Fechado</span>
+        {% endif %}
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <a class="btn btn-sm btn-outline-secondary" href="?mes={{ competencia|date:'Y-m' }}&formato=csv">Exportar CSV</a>
+        <form method="post" action="{% url 'agendas:repasse_acao' medico.id %}" class="d-flex gap-2 align-items-center">
+            {% csrf_token %}
+            <input type="hidden" name="mes" value="{{ competencia|date:'Y-m' }}">
+            <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
+            {% if not fechamento and itens %}
+            <button type="submit" name="acao" value="fechar" class="btn btn-sm btn-primary"
+                    onclick="return confirm('Fechar o repasse? Os valores serão congelados e as agendas ficarão travadas.');">Fechar repasse</button>
+            {% elif fechamento.status == "fechado" %}
+            <input type="text" name="observacao" class="form-control form-control-sm" placeholder="Observação do pagamento (opcional)">
+            <button type="submit" name="acao" value="reabrir" class="btn btn-sm btn-outline-secondary"
+                    onclick="return confirm('Reabrir o fechamento? Os valores voltam a ser recalculados.');">Reabrir</button>
+            <button type="submit" name="acao" value="pagar" class="btn btn-sm btn-success text-nowrap"
+                    onclick="return confirm('Marcar como pago?');">Marcar pago</button>
+            {% endif %}
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<table class="table table-sm bg-white align-middle">
+    <thead>
+        <tr>
+            <th style="width:90px;">Agenda</th>
+            <th style="width:110px;">Data</th>
+            <th>Unidade</th>
+            <th>Procedimento</th>
+            <th>Cálculo</th>
+            <th>Prazo</th>
+            <th class="text-end">Valor base</th>
+            <th class="text-end">Qtd.</th>
+            <th class="text-end">Valor</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for i in itens %}
+        <tr>
+            <td>#{{ i.agenda_numero|default:"-" }}</td>
+            <td>
+                {{ i.data|date:"d/m/Y" }}
+                {% if i.fora_do_prazo %}<span class="badge text-bg-warning" title="Mês original já estava fechado">fora do prazo</span>{% endif %}
+            </td>
+            <td>{{ i.unidade }}</td>
+            <td>{{ i.procedimento }}</td>
+            <td>{{ i.tipo_calculo }}</td>
+            <td>{% if i.prazo == 1 %}Mês seguinte{% else %}{{ i.prazo }} meses{% endif %}</td>
+            <td class="text-end">R$ {{ i.valor_base|floatformat:"2g" }}</td>
+            <td class="text-end">{{ i.quantidade }}</td>
+            <td class="text-end">R$ {{ i.valor|floatformat:"2g" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="9" class="text-muted text-center py-4">Nenhum item neste mês.</td></tr>
+        {% endfor %}
+    </tbody>
+    {% if itens %}
+    <tfoot>
+        <tr>
+            <th colspan="8" class="text-end">Total</th>
+            <th class="text-end">R$ {{ total|floatformat:"2g" }}</th>
+        </tr>
+    </tfoot>
+    {% endif %}
+</table>
+{% endblock %}
